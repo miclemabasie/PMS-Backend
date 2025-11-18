@@ -1,0 +1,1377 @@
+{
+    "info": {
+        "name": "Django Starter API",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "description": "Complete API collection for the Django Starter project.\n\n**Base URL:** `{{base_url}}`\n\n**Authentication:** JWT token is automatically stored after login and used in subsequent requests."
+    },
+    "item": [
+        {
+            "name": "🔐 Authentication (djoser)",
+            "description": "All authentication endpoints provided by djoser.\n\n**Note:** After login, the access token is automatically saved to the environment variable `access_token`.",
+            "item": [
+                {
+                    "name": "1. Register User",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/users/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "users",
+                                ""
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"john.doe@example.com\",\n    \"username\": \"johndoe\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"password\": \"StrongPass123!\"\n}"
+                        },
+                        "description": "Create a new user account. Role defaults to 'user'."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "2. Activate User",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/users/activation/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "users",
+                                "activation",
+                                ""
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"uid\": \"uid_from_email\",\n    \"token\": \"token_from_email\"\n}"
+                        },
+                        "description": "Activate user account using the UID and token received by email."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "3. Resend Activation Email",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/users/resend_activation/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "users",
+                                "resend_activation",
+                                ""
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"john.doe@example.com\"\n}"
+                        },
+                        "description": "Resend activation email to the specified address."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "4. Obtain JWT Token (Login)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var jsonData = pm.response.json();",
+                                    "pm.environment.set('access_token', jsonData.access);",
+                                    "pm.environment.set('refresh_token', jsonData.refresh);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/jwt/create/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "jwt",
+                                "create",
+                                ""
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"john.doe@example.com\",\n    \"password\": \"StrongPass123!\"\n}"
+                        },
+                        "description": "Login with email/password. Returns access and refresh tokens. Access token is automatically stored in the environment variable `access_token`."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "5. Refresh JWT Token",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/jwt/refresh/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "jwt",
+                                "refresh",
+                                ""
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"refresh\": \"{{refresh_token}}\"\n}"
+                        },
+                        "description": "Obtain a new access token using the refresh token."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "6. Verify JWT Token",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/jwt/verify/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "jwt",
+                                "verify",
+                                ""
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"token\": \"{{access_token}}\"\n}"
+                        },
+                        "description": "Verify that the access token is valid."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "7. Password Reset Request",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/users/reset_password/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "users",
+                                "reset_password",
+                                ""
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"john.doe@example.com\"\n}"
+                        },
+                        "description": "Send a password reset email to the user."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "8. Password Reset Confirm",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/users/reset_password_confirm/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "users",
+                                "reset_password_confirm",
+                                ""
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"uid\": \"uid_from_email\",\n    \"token\": \"token_from_email\",\n    \"new_password\": \"NewStrongPass123!\"\n}"
+                        },
+                        "description": "Confirm password reset with UID and token from email."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "9. Set Password (Authenticated)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/users/set_password/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "users",
+                                "set_password",
+                                ""
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"current_password\": \"StrongPass123!\",\n    \"new_password\": \"NewStrongPass123!\"\n}"
+                        },
+                        "description": "Change password for the currently authenticated user."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "10. Get Current User",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/users/me/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "users",
+                                "me",
+                                ""
+                            ]
+                        },
+                        "description": "Retrieve the currently authenticated user's details (djoser endpoint)."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "11. Update Current User",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/users/me/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "users",
+                                "me",
+                                ""
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"first_name\": \"Johnny\",\n    \"last_name\": \"Doe\"\n}"
+                        },
+                        "description": "Update the current user's fields (email/username are read‑only for security)."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "12. Delete Current User",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/users/me/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "auth",
+                                "users",
+                                "me",
+                                ""
+                            ]
+                        },
+                        "description": "Permanently delete the current user account. Use with caution!"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "👤 User Management (Custom)",
+            "description": "Custom user/profile endpoints from the `UserViewSet`.\n\n**Authorization:** Bearer token required (automatically added if `access_token` is set).",
+            "item": [
+                {
+                    "name": "Get My Profile (Full)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/users/me/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "users",
+                                "me",
+                                ""
+                            ]
+                        },
+                        "description": "Get the currently authenticated user's full profile, including nested profile fields."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update My Profile",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/users/update_me/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "users",
+                                "update_me",
+                                ""
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"first_name\": \"Johnny\",\n    \"last_name\": \"Smith\",\n    \"bio\": \"I am a software developer.\",\n    \"gender\": \"male\",\n    \"phone_number\": \"+1234567890\",\n    \"country\": \"US\",\n    \"city\": \"San Francisco\",\n    \"address\": \"123 Main St\"\n}"
+                        },
+                        "description": "Update the current user's profile (both User and Profile fields)."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Deactivate My Account (Soft Delete)",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/users/delete_me/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "users",
+                                "delete_me",
+                                ""
+                            ]
+                        },
+                        "description": "Deactivate the current user's account (sets `is_active=False`). Can be reactivated by admin."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "List Users (Admin only)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/users/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "users",
+                                ""
+                            ]
+                        },
+                        "description": "Retrieve a paginated list of all users. **Admin only.**"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Retrieve User by ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/users/{{user_id}}/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "users",
+                                "{{user_id}}",
+                                ""
+                            ]
+                        },
+                        "description": "Retrieve a specific user by ID. Accessible to the owner or admin."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update User (Admin/Owner)",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/users/{{user_id}}/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "users",
+                                "{{user_id}}",
+                                ""
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"first_name\": \"Updated\",\n    \"role\": \"moderator\"\n}"
+                        },
+                        "description": "Update a specific user. Owners can update their own info; admins can also update role and is_active."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Delete User (Admin only)",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/users/{{user_id}}/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "users",
+                                "{{user_id}}",
+                                ""
+                            ]
+                        },
+                        "description": "Permanently delete a user. **Admin only.**"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Assign Role (Admin only)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/users/assign_role/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "users",
+                                "assign_role",
+                                ""
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_id\": \"{{user_id}}\",\n    \"role\": \"moderator\"\n}"
+                        },
+                        "description": "Change a user's role. Allowed values: `admin`, `moderator`, `user`."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "📬 Notifications",
+            "description": "Complete notification system: templates, broadcasts, logs, email settings, and user preferences.",
+            "item": [
+                {
+                    "name": "📋 Templates",
+                    "item": [
+                        {
+                            "name": "List Templates",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/templates/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "templates",
+                                        ""
+                                    ]
+                                },
+                                "description": "Get all notification templates."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Create Template",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/templates/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "templates",
+                                        ""
+                                    ]
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"welcome_email\",\n    \"description\": \"Welcome email for new users.\",\n    \"type\": \"email\",\n    \"subject\": \"Welcome to {{ site_name }}!\",\n    \"template\": \"Hello {{ user.first_name }}, welcome aboard!\",\n    \"html_template\": \"<h1>Welcome</h1><p>Hello {{ user.first_name }}, welcome aboard!</p>\",\n    \"is_active\": true\n}"
+                                },
+                                "description": "Create a new notification template."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Retrieve Template",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/templates/{{template_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "templates",
+                                        "{{template_id}}",
+                                        ""
+                                    ]
+                                },
+                                "description": "Get a single template by ID."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Update Template",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/templates/{{template_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "templates",
+                                        "{{template_id}}",
+                                        ""
+                                    ]
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"welcome_email\",\n    \"description\": \"Updated welcome email.\",\n    \"type\": \"email\",\n    \"subject\": \"Welcome!\",\n    \"template\": \"Hi {{ user.first_name }}, thanks for joining!\",\n    \"html_template\": \"<h2>Welcome!</h2>...\",\n    \"is_active\": true\n}"
+                                },
+                                "description": "Fully update a template."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Partial Update Template",
+                            "request": {
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/templates/{{template_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "templates",
+                                        "{{template_id}}",
+                                        ""
+                                    ]
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"subject\": \"New Subject\"\n}"
+                                },
+                                "description": "Partially update a template."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Delete Template",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/templates/{{template_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "templates",
+                                        "{{template_id}}",
+                                        ""
+                                    ]
+                                },
+                                "description": "Delete a template."
+                            },
+                            "response": []
+                        }
+                    ]
+                },
+                {
+                    "name": "📨 Broadcasts",
+                    "item": [
+                        {
+                            "name": "List Broadcasts",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/broadcasts/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "broadcasts",
+                                        ""
+                                    ]
+                                },
+                                "description": "Get all broadcasts."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Create Broadcast",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/broadcasts/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "broadcasts",
+                                        ""
+                                    ]
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"Welcome Campaign\",\n    \"template\": \"{{template_id}}\",\n    \"channel\": \"email\",\n    \"recipient_filter\": {\"is_active\": true},\n    \"scheduled_at\": null\n}"
+                                },
+                                "description": "Create a broadcast. Leave `scheduled_at` null to send immediately."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Send Broadcast",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/broadcasts/{{broadcast_id}}/send/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "broadcasts",
+                                        "{{broadcast_id}}",
+                                        "send",
+                                        ""
+                                    ]
+                                },
+                                "description": "Send (or schedule) a broadcast. The broadcast must be in draft state."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Retrieve Broadcast",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/broadcasts/{{broadcast_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "broadcasts",
+                                        "{{broadcast_id}}",
+                                        ""
+                                    ]
+                                },
+                                "description": "Get a single broadcast."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Update Broadcast",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/broadcasts/{{broadcast_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "broadcasts",
+                                        "{{broadcast_id}}",
+                                        ""
+                                    ]
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"Updated Campaign\",\n    \"recipient_filter\": {\"is_active\": true, \"role\": \"user\"}\n}"
+                                },
+                                "description": "Fully update a broadcast (only if still in draft)."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Delete Broadcast",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/broadcasts/{{broadcast_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "broadcasts",
+                                        "{{broadcast_id}}",
+                                        ""
+                                    ]
+                                },
+                                "description": "Delete a broadcast (only if in draft)."
+                            },
+                            "response": []
+                        }
+                    ]
+                },
+                {
+                    "name": "📩 Notifications Log",
+                    "item": [
+                        {
+                            "name": "List My Notifications",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/notifications/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "notifications",
+                                        ""
+                                    ]
+                                },
+                                "description": "Get all notifications sent to the current user."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Retrieve Notification",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/notifications/{{notification_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "notifications",
+                                        "{{notification_id}}",
+                                        ""
+                                    ]
+                                },
+                                "description": "Get a single notification by ID (only if it belongs to the user or admin)."
+                            },
+                            "response": []
+                        }
+                    ]
+                },
+                {
+                    "name": "⚙️ User Notification Settings",
+                    "item": [
+                        {
+                            "name": "Get My Settings",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/settings/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "settings",
+                                        ""
+                                    ]
+                                },
+                                "description": "Retrieve the current user's notification preferences."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Update My Settings",
+                            "request": {
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/settings/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "settings",
+                                        ""
+                                    ]
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"email_enabled\": true,\n    \"sms_enabled\": false,\n    \"receive_marketing_emails\": false\n}"
+                                },
+                                "description": "Update the current user's notification settings."
+                            },
+                            "response": []
+                        }
+                    ]
+                },
+                {
+                    "name": "📧 Email Configuration (Admin only)",
+                    "item": [
+                        {
+                            "name": "List Email Configs",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/email-configs/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "email-configs",
+                                        ""
+                                    ]
+                                },
+                                "description": "List all email configurations (admin only)."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Create Email Config",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/email-configs/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "email-configs",
+                                        ""
+                                    ]
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"SendGrid\",\n    \"host\": \"smtp.sendgrid.net\",\n    \"port\": 587,\n    \"username\": \"apikey\",\n    \"password\": \"SG.xxxxxx\",\n    \"use_tls\": true,\n    \"from_email\": \"noreply@example.com\",\n    \"is_active\": true\n}"
+                                },
+                                "description": "Create a new email configuration. Setting `is_active=True` deactivates any other active config."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Retrieve Email Config",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/email-configs/{{config_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "email-configs",
+                                        "{{config_id}}",
+                                        ""
+                                    ]
+                                },
+                                "description": "Get a single email configuration."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Update Email Config",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/email-configs/{{config_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "email-configs",
+                                        "{{config_id}}",
+                                        ""
+                                    ]
+                                },
+                                "description": "Fully update an email configuration."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Delete Email Config",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/notifications/email-configs/{{config_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "notifications",
+                                        "email-configs",
+                                        "{{config_id}}",
+                                        ""
+                                    ]
+                                },
+                                "description": "Delete an email configuration."
+                            },
+                            "response": []
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost",
+            "type": "string",
+            "description": "Base URL of your Django API (change for production)."
+        },
+        {
+            "key": "access_token",
+            "value": "",
+            "type": "string",
+            "description": "JWT access token – automatically set after login."
+        },
+        {
+            "key": "refresh_token",
+            "value": "",
+            "type": "string",
+            "description": "JWT refresh token – automatically set after login."
+        },
+        {
+            "key": "user_id",
+            "value": "",
+            "type": "string",
+            "description": "ID of a user (used in admin endpoints)."
+        },
+        {
+            "key": "template_id",
+            "value": "",
+            "type": "string",
+            "description": "UUID of a notification template."
+        },
+        {
+            "key": "broadcast_id",
+            "value": "",
+            "type": "string",
+            "description": "UUID of a broadcast."
+        },
+        {
+            "key": "notification_id",
+            "value": "",
+            "type": "string",
+            "description": "UUID of a notification log entry."
+        },
+        {
+            "key": "config_id",
+            "value": "",
+            "type": "string",
+            "description": "UUID of an email configuration."
+        }
+    ]
+}

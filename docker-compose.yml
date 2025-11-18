@@ -1,0 +1,111 @@
+services:
+    api:
+        build:
+            context: .
+            dockerfile: ./docker/local/django/Dockerfile
+
+        command: /start
+        volumes:
+            - .:/app
+            - pms_static_volume:/app/staticfiles
+            - pms_media_volume:/app/mediafiles
+
+        env_file:
+            - app/.env
+        depends_on:
+            - postgres-db
+            - elasticsearch
+            - redis
+
+        networks:
+            - pms-network
+
+    postgres-db:
+        image: postgres:16-alpine
+        ports:
+            - "5432:5432"
+        volumes:
+            - pms_postgres_data:/var/lib/postgresql/data/
+        env_file:
+            - app/.env
+
+        networks:
+            - pms-network
+
+    redis:
+        image: redis:6.0.9-alpine
+        container_name: pms-redis
+        ports:
+            - "6379:6379"
+        networks:
+            - pms-network
+
+    celery_worker:
+        build:
+            context: .
+            dockerfile: ./docker/local/django/Dockerfile
+        command: /start-celeryworker
+        volumes:
+            - .:/app
+        env_file:
+            - app/.env
+        depends_on:
+            - redis
+            - postgres-db
+        networks:
+            - pms-network
+
+    flower:
+        build:
+            context: .
+            dockerfile: ./docker/local/django/Dockerfile
+        command: /start-flower
+        volumes:
+            - .:/app
+        env_file:
+            - app/.env
+        ports:
+            - 5557:5555
+        depends_on:
+            - redis
+            - postgres-db
+        networks:
+            - pms-network
+
+    nginx:
+        restart: always
+        depends_on:
+            - api
+        build:
+            context: ./docker/local/nginx
+            dockerfile: Dockerfile
+        ports:
+            - 80:80
+            # - 443:443 # uncomment this line in production
+        networks:
+            - pms-network
+        # volumes:
+        #     - /etc/letsencrypt:/etc/letsencrypt # uncomment this line in production
+
+    elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+        volumes:
+            - pms_elastic_data:/usr/share/elasticsearch/data
+        environment:
+            - discovery.type=single-node
+            - xpack.security.enabled=false
+        ports:
+            - 9200:9200
+
+        networks:
+            - pms-network
+
+networks:
+    pms-network:
+        driver: bridge
+
+volumes:
+    pms_postgres_data:
+    pms_static_volume:
+    pms_media_volume:
+    pms_elastic_data:

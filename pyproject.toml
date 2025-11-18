@@ -1,0 +1,49 @@
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | \.tox
+  | \.mypy_cache
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+known_first_party = ["apps"]
+known_django = ["django"]
+sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+[tool.flake8]
+max-line-length = 119
+extend-ignore = ["E203", "W503"]
+exclude = [
+    "*/migrations/*",
+    "*/staticfiles/*",
+    "*/mediafiles/*",
+    ".venv",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["apps"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "manage.py",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true

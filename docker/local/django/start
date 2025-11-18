@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -o errexit
+
+set -o pipefail
+
+set -o nounset
+
+cd /app/app
+
+
+python3 manage.py migrate --no-input
+python3 manage.py collectstatic --no-input
+# daphne -b 0.0.0.0 -p 8000 djangostarter.asgi:application
+python3 manage.py runserver 0.0.0.0:8000
+#use this in production without --reload flag
+uvicorn djangostarter.asgi:application --host 0.0.0.0 --port 8000 --workers 4 --log-level debug --reload 
