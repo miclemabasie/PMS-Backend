@@ -4,6 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django_countries.fields import CountryField
 from phonenumber_field.modelfields import PhoneNumberField
+from model_utils import FieldTracker
 
 from apps.core.models import TimeStampedUUIDModel
 from apps.users.models import User  # your existing User model
@@ -252,6 +253,29 @@ class Tenant(TimeStampedUUIDModel):
     )
     notes = models.TextField(_("Notes"), blank=True)
 
+    language = models.CharField(
+        max_length=2, choices=[("en", "English"), ("fr", "French")], default="en"
+    )
+    emergency_contact_name_fr = models.CharField(
+        _("Emergency contact name (French)"), max_length=255, blank=True
+    )
+    employer_fr = models.CharField(_("Employer (French)"), max_length=255, blank=True)
+    job_title_fr = models.CharField(_("Job title (French)"), max_length=100, blank=True)
+    notes_fr = models.TextField(_("Notes (French)"), blank=True)
+    guarantor_name_fr = models.CharField(
+        _("Guarantor name (French)"), max_length=255, blank=True
+    )
+
+    tracker = FieldTracker(
+        fields=[
+            "emergency_contact_name",
+            "employer",
+            "job_title",
+            "notes",
+            "guarantor_name",
+        ]
+    )
+
     class Meta:
         verbose_name = _("Tenant")
         verbose_name_plural = _("Tenants")
@@ -281,6 +305,7 @@ class Property(TimeStampedUUIDModel):
         choices=PropertyType.choices,
         default=PropertyType.APARTMENT,
     )
+
     description = models.TextField(_("Description"), blank=True)
     address_line1 = models.CharField(_("Address line 1"), max_length=255)
     address_line2 = models.CharField(_("Address line 2"), max_length=255, blank=True)
@@ -302,6 +327,19 @@ class Property(TimeStampedUUIDModel):
         verbose_name=_("Owners"),
     )
     is_active = models.BooleanField(_("Active"), default=True)
+
+    language = models.CharField(
+        _("Original language"),
+        max_length=2,
+        choices=[("en", "English"), ("fr", "French")],
+        default="en",
+        help_text=_("Language of the main text fields (name, description, amenities)"),
+    )
+    name_fr = models.CharField(_("Name (French)"), max_length=255, blank=True)
+    description_fr = models.TextField(_("Description (French)"), blank=True)
+    amenities_fr = models.JSONField(_("Amenities (French)"), default=list, blank=True)
+
+    tracker = FieldTracker(fields=["name", "description", "amenities"])
 
     class Meta:
         verbose_name = _("Property")
@@ -415,6 +453,13 @@ class Unit(TimeStampedUUIDModel):
     has_prepaid_meter = models.BooleanField(_("Prepaid meter"), default=False)
     # Flexible custom fields
     custom_fields = models.JSONField(_("Custom fields"), default=dict, blank=True)
+
+    language = models.CharField(
+        max_length=2, choices=[("en", "English"), ("fr", "French")], default="en"
+    )
+    amenities_fr = models.JSONField(_("Amenities (French)"), default=list, blank=True)
+
+    tracker = FieldTracker(fields=["amenities"])
 
     class Meta:
         verbose_name = _("Unit")
@@ -654,6 +699,25 @@ class Vendor(TimeStampedUUIDModel):
     notes = models.TextField(_("Notes"), blank=True)
     is_active = models.BooleanField(_("Active"), default=True)
 
+    anguage = models.CharField(
+        max_length=2, choices=[("en", "English"), ("fr", "French")], default="en"
+    )
+    company_name_fr = models.CharField(
+        _("Company name (French)"), max_length=255, blank=True
+    )
+    contact_name_fr = models.CharField(
+        _("Contact person (French)"), max_length=255, blank=True
+    )
+    address_fr = models.CharField(_("Address (French)"), max_length=255, blank=True)
+    specialties_fr = models.JSONField(
+        _("Specialties (French)"), default=list, blank=True
+    )
+    notes_fr = models.TextField(_("Notes (French)"), blank=True)
+
+    tracker = FieldTracker(
+        fields=["company_name", "contact_name", "address", "specialties", "notes"]
+    )
+
     class Meta:
         verbose_name = _("Vendor")
         verbose_name_plural = _("Vendors")
@@ -738,6 +802,14 @@ class MaintenanceRequest(TimeStampedUUIDModel):
     completed_at = models.DateTimeField(_("Completed at"), blank=True, null=True)
     notes = models.TextField(_("Notes"), blank=True)
 
+    language = models.CharField(
+        max_length=2, choices=[("en", "English"), ("fr", "French")], default="en"
+    )
+    title_fr = models.CharField(_("Title (French)"), max_length=255, blank=True)
+    description_fr = models.TextField(_("Description (French)"), blank=True)
+
+    tracker = FieldTracker(fields=["title", "description"])
+
     class Meta:
         verbose_name = _("Maintenance request")
         verbose_name_plural = _("Maintenance requests")
@@ -791,6 +863,13 @@ class Expense(TimeStampedUUIDModel):
     )
     is_reimbursable = models.BooleanField(_("Reimbursable by tenant"), default=False)
     reimbursed = models.BooleanField(_("Reimbursed"), default=False)
+
+    language = models.CharField(
+        max_length=2, choices=[("en", "English"), ("fr", "French")], default="en"
+    )
+    description_fr = models.TextField(_("Description (French)"), blank=True)
+
+    tracker = FieldTracker(fields=["description"])
 
     class Meta:
         verbose_name = _("Expense")
