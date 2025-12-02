@@ -15,7 +15,7 @@ from .models import (
     MaintenanceRequest,
     Expense,
     Document,
-    Notification,
+    # Notification,
 )
 from apps.users.models import User  # adjust import as needed
 from django.contrib.contenttypes.models import ContentType
@@ -27,6 +27,8 @@ from django.contrib.contenttypes.models import ContentType
 
 class UserMinimalSerializer(serializers.ModelSerializer):
     """Minimal user info for nested relations."""
+
+    phone = serializers.CharField(source="profile.phone", read_only=True)
 
     class Meta:
         model = User
@@ -262,7 +264,7 @@ class UnitSerializer(serializers.ModelSerializer):
 # ----------------------------------------------------------------------
 
 
-class LeaseTenantSerializer(serializers.ModelSerializer):
+\class LeaseTenantSerializer(serializers.ModelSerializer):
     tenant = TenantSerializer(read_only=True)
     tenant_id = serializers.PrimaryKeyRelatedField(
         queryset=Tenant.objects.all(), source="tenant", write_only=True
@@ -277,7 +279,8 @@ class LeaseSerializer(serializers.ModelSerializer):
     unit_detail = UnitSerializer(source="unit", read_only=True)
     unit_id = serializers.PrimaryKeyRelatedField(
         queryset=Unit.objects.all(), source="unit", write_only=True
-    )
+    )   
+    
     tenants = LeaseTenantSerializer(source="lease_tenants", many=True, read_only=True)
     tenant_ids = serializers.PrimaryKeyRelatedField(
         many=True, queryset=Tenant.objects.all(), write_only=True, required=False
@@ -593,27 +596,27 @@ class DocumentSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "updated_at"]
 
 
-class NotificationSerializer(serializers.ModelSerializer):
-    recipient_detail = UserMinimalSerializer(source="recipient", read_only=True)
-    recipient_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), source="recipient", write_only=True
-    )
+# class NotificationSerializer(serializers.ModelSerializer):
+#     recipient_detail = UserMinimalSerializer(source="recipient", read_only=True)
+#     recipient_id = serializers.PrimaryKeyRelatedField(
+#         queryset=User.objects.all(), source="recipient", write_only=True
+#     )
 
-    class Meta:
-        model = Notification
-        fields = [
-            "id",
-            "recipient",
-            "recipient_detail",
-            "recipient_id",
-            "notification_type",
-            "subject",
-            "body",
-            "status",
-            "sent_at",
-            "provider_message_id",
-            "error_message",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["created_at", "updated_at"]
+#     class Meta:
+#         model = Notification
+#         fields = [
+#             "id",
+#             "recipient",
+#             "recipient_detail",
+#             "recipient_id",
+#             "notification_type",
+#             "subject",
+#             "body",
+#             "status",
+#             "sent_at",
+#             "provider_message_id",
+#             "error_message",
+#             "created_at",
+#             "updated_at",
+#         ]
+#         read_only_fields = ["created_at", "updated_at"]

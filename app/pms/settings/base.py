@@ -61,7 +61,7 @@ THIRD_PARTY_APPS = [
     "modeltranslation",
     "autoslug",
     "django_extensions",
-    "django_elasticsearch_dsl",
+    # "django_elasticsearch_dsl",
     "allauth",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
@@ -148,7 +148,7 @@ DATABASES = {
 # -----------------------------
 # Elasticsearch
 # -----------------------------
-ELASTICSEARCH_DSL = {"default": {"hosts": "http://elasticsearch:9200"}}
+# ELASTICSEARCH_DSL = {"default": {"hosts": "http://elasticsearch:9200"}}
 
 # -----------------------------
 # Email & CORS
@@ -240,8 +240,8 @@ SIMPLE_JWT = {
 DJOSER = {
     "LOGIN_FIELD": "email",
     "USER_CREATE_PASSWORD_RETYPE": True,
-    "SEND_ACTIVATION_EMAIL": True,
-    "SEND_CONFIRMATION_EMAIL": True,
+    "SEND_ACTIVATION_EMAIL": False,
+    "SEND_CONFIRMATION_EMAIL": False,
     "ACTIVATION_URL": "activate/{uid}/{token}",
     "PASSWORD_RESET_CONFIRM_URL": "password-reset/{uid}/{token}",
     "USERNAME_RESET_CONFIRM_URL": "username-reset/{uid}/{token}",

@@ -38,7 +38,7 @@ class DjangoRepository(BaseRepository[T]):
 
     def get(self, id: Any) -> Optional[T]:
         try:
-            return self.model_class.objects.get(pk=id)
+            return self.model_class.objects.get(id=id)
         except ObjectDoesNotExist:
             return None
 

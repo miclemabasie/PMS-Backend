@@ -19,6 +19,8 @@ RUN apt-get update \
 
 # Upgrade pip
 RUN pip3 install --upgrade pip
+RUN pip install --upgrade pip && pip install "setuptools<70"
+
 
 # Copy requirements and install Python dependencies
 COPY ./requirements.txt /app/requirements.txt

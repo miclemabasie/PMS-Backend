@@ -1,0 +1,2378 @@
+{
+  "info": {
+    "name": "Cameroon Property Management API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Complete API collection for the Cameroon Property Management platform. Uses djoser for authentication. Set environment variables: base_url (e.g., http://localhost:8000/api) and access_token (obtained after login)."
+  },
+  "item": [
+    {
+      "name": "Authentication (djoser)",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"user@example.com\",\n    \"username\": \"johndoe\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"password\": \"strongpassword123\",\n    \"re_password\": \"strongpassword123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/users/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "users"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Activate User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"uid\": \"uid_from_email\",\n    \"token\": \"token_from_email\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/users/activation/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "users",
+                "activation"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login (Obtain JWT)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"user@example.com\",\n    \"password\": \"strongpassword123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/jwt/create/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "jwt",
+                "create"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const response = pm.response.json();",
+                  "pm.environment.set('access_token', response.access);",
+                  "pm.environment.set('refresh_token', response.refresh);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh JWT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"refresh\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/jwt/refresh/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "jwt",
+                "refresh"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/users/me/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "users",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"current_password\": \"oldpassword\",\n    \"new_password\": \"newpassword123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/users/set_password/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "users",
+                "set_password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reset Password Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"user@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/users/reset_password/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "users",
+                "reset_password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reset Password Confirm",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"uid\": \"uid_from_email\",\n    \"token\": \"token_from_email\",\n    \"new_password\": \"newpassword123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/users/reset_password_confirm/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "users",
+                "reset_password_confirm"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment Terms",
+      "item": [
+        {
+          "name": "List Payment Terms",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/payment-terms/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "payment-terms"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Payment Term",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Quarterly\",\n    \"interval_months\": 3,\n    \"description\": \"Payment every 3 months\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/payment-terms/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "payment-terms"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Payment Term",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/payment-terms/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "payment-terms",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Payment Term",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Quarterly Updated\",\n    \"interval_months\": 3,\n    \"description\": \"Updated description\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/payment-terms/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "payment-terms",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Payment Term",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/payment-terms/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "payment-terms",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Owners",
+      "item": [
+        {
+          "name": "List Owners",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/owners/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "owners"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Owner",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user\": {\"id\": \"user-uuid\"},\n    \"preferred_payout_method\": \"bank_transfer\",\n    \"mobile_money_number\": \"+237612345678\",\n    \"bank_account_name\": \"John Doe\",\n    \"bank_name\": \"Société Générale\",\n    \"bank_account_number\": \"12345678901\",\n    \"tax_id\": \"P123456789\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/owners/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "owners"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Owner",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/owners/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "owners",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Owner",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"preferred_payout_method\": \"mtn_momo\",\n    \"mobile_money_number\": \"+237698765432\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/owners/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "owners",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tenants",
+      "item": [
+        {
+          "name": "List Tenants",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/tenants/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "tenants"
+              ],
+              "query": [
+                {
+                  "key": "property",
+                  "value": "property-uuid",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Tenant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_id\": \"user-uuid\",\n    \"id_number\": \"104567890\",\n    \"emergency_contact_name\": \"Jane Doe\",\n    \"emergency_contact_phone\": \"+237612345679\",\n    \"employer\": \"Company XYZ\",\n    \"job_title\": \"Accountant\",\n    \"monthly_income\": 250000,\n    \"guarantor_name\": \"Peter Pan\",\n    \"guarantor_phone\": \"+237612345680\",\n    \"notes\": \"Good tenant\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/tenants/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "tenants"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Tenant",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/tenants/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "tenants",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Tenant",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"employer\": \"New Company\",\n    \"job_title\": \"Manager\",\n    \"monthly_income\": 300000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/tenants/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "tenants",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Tenant",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/tenants/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "tenants",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Properties",
+      "item": [
+        {
+          "name": "List Properties",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/properties/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "properties"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Property",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Résidence Les Acacias\",\n    \"property_type\": \"apartment\",\n    \"description\": \"Beautiful apartment building\",\n    \"address_line1\": \"123 Rue de la Paix\",\n    \"city\": \"Douala\",\n    \"state\": \"Littoral\",\n    \"country\": \"CM\",\n    \"has_generator\": true,\n    \"has_water_tank\": true,\n    \"amenities\": [\"parking\", \"security\"],\n    \"images\": [\"https://example.com/image1.jpg\"],\n    \"managers\": [\"manager-uuid1\", \"manager-uuid2\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/properties/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "properties"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Property",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/properties/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "properties",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Property",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Résidence Les Acacias Updated\",\n    \"description\": \"New description\",\n    \"amenities\": [\"parking\", \"security\", \"swimming pool\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/properties/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "properties",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Property",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/properties/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "properties",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Units",
+      "item": [
+        {
+          "name": "List Units",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/units/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "units"
+              ],
+              "query": [
+                {
+                  "key": "property",
+                  "value": "property-uuid",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Unit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"property_id\": \"property-uuid\",\n    \"unit_number\": \"A101\",\n    \"unit_type\": \"2_bed\",\n    \"floor\": 1,\n    \"size_m2\": 80,\n    \"bedrooms\": 2,\n    \"bathrooms\": 2,\n    \"default_rent_amount\": 150000,\n    \"default_payment_term_id\": \"payment-term-uuid\",\n    \"default_security_deposit\": 150000,\n    \"amenities\": [\"balcony\", \"air conditioning\"],\n    \"water_meter_number\": \"WM12345\",\n    \"electricity_meter_number\": \"EM67890\",\n    \"has_prepaid_meter\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/units/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "units"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Unit",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/units/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "units",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Unit",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"default_rent_amount\": 160000,\n    \"status\": \"vacant\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/units/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "units",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Unit",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/units/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "units",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Leases",
+      "item": [
+        {
+          "name": "List Leases",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/leases/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "leases"
+              ],
+              "query": [
+                {
+                  "key": "unit",
+                  "value": "unit-uuid",
+                  "disabled": true
+                },
+                {
+                  "key": "tenant",
+                  "value": "tenant-uuid",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Lease",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"unit_id\": \"unit-uuid\",\n    \"tenant_ids\": [\"tenant-uuid1\", \"tenant-uuid2\"],\n    \"start_date\": \"2025-01-01\",\n    \"end_date\": \"2026-01-01\",\n    \"payment_term_id\": \"payment-term-uuid\",\n    \"rent_amount\": 1800000,\n    \"due_day\": 5,\n    \"security_deposit\": 180000,\n    \"late_fee_type\": \"fixed\",\n    \"late_fee_value\": 5000,\n    \"utilities_included\": [\"water\"],\n    \"documents\": [\"https://example.com/lease.pdf\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/leases/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "leases"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Lease",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/leases/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "leases",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Lease",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"rent_amount\": 1900000,\n    \"late_fee_value\": 6000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/leases/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "leases",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Lease",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/leases/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "leases",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Terminate Lease",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"termination_date\": \"2025-06-30\",\n    \"reason\": \"Tenant relocation\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/leases/:id/terminate/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "leases",
+                ":id",
+                "terminate"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Renew Lease",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"new_end_date\": \"2027-01-01\",\n    \"new_rent_amount\": 2000000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/leases/:id/renew/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "leases",
+                ":id",
+                "renew"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "List Payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/payments/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "lease",
+                  "value": "lease-uuid",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"lease_id\": \"lease-uuid\",\n    \"tenant_id\": \"tenant-uuid\",\n    \"amount\": 150000,\n    \"payment_date\": \"2025-02-01\",\n    \"payment_method\": \"mtn_momo\",\n    \"payment_type\": \"rent\",\n    \"period_start\": \"2025-02-01\",\n    \"period_end\": \"2025-03-01\",\n    \"mobile_provider\": \"MTN\",\n    \"mobile_phone\": \"+237612345678\",\n    \"mobile_reference\": \"TX123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/payments/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "payments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Payment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/payments/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "payments",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Payment",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"completed\",\n    \"gateway_response\": {\"id\": \"gw123\"}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/payments/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "payments",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Payment",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/payments/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "payments",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Maintenance Requests",
+      "item": [
+        {
+          "name": "List Maintenance Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/maintenance-requests/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "maintenance-requests"
+              ],
+              "query": [
+                {
+                  "key": "unit",
+                  "value": "unit-uuid",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "submitted",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Maintenance Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"unit_id\": \"unit-uuid\",\n    \"tenant_id\": \"tenant-uuid\",\n    \"title\": \"Leaky faucet\",\n    \"description\": \"The kitchen faucet is leaking.\",\n    \"priority\": \"medium\",\n    \"photos\": [\"https://example.com/leak.jpg\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/maintenance-requests/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "maintenance-requests"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Maintenance Request",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/maintenance-requests/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "maintenance-requests",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Maintenance Request",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"priority\": \"high\",\n    \"description\": \"Updated description\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/maintenance-requests/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "maintenance-requests",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Assign Vendor to Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"vendor_id\": \"vendor-uuid\",\n    \"estimated_cost\": 25000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/maintenance-requests/:id/assign/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "maintenance-requests",
+                ":id",
+                "assign"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Complete Maintenance Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"actual_cost\": 27000,\n    \"notes\": \"Fixed the leak, replaced washer.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/maintenance-requests/:id/complete/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "maintenance-requests",
+                ":id",
+                "complete"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vendors",
+      "item": [
+        {
+          "name": "List Vendors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/vendors/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "vendors"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Vendor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"company_name\": \"Plomberie Express\",\n    \"contact_name\": \"Jean Claude\",\n    \"phone\": \"+237612345678\",\n    \"email\": \"jean@plomberie.cm\",\n    \"address\": \"123 Rue des Artisans, Douala\",\n    \"specialties\": [\"plumbing\", \"water heaters\"],\n    \"notes\": \"Reliable and fast\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/vendors/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "vendors"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Vendor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/vendors/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "vendors",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Vendor",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"notes\": \"Now offers electrical services as well\",\n    \"specialties\": [\"plumbing\", \"water heaters\", \"electrical\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/vendors/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "vendors",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Vendor",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/vendors/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "vendors",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Expenses",
+      "item": [
+        {
+          "name": "List Expenses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/expenses/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "expenses"
+              ],
+              "query": [
+                {
+                  "key": "property",
+                  "value": "property-uuid",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"property_id\": \"property-uuid\",\n    \"unit_id\": \"unit-uuid\",\n    \"category\": \"maintenance\",\n    \"amount\": 50000,\n    \"expense_date\": \"2025-02-10\",\n    \"description\": \"Repair of water pump\",\n    \"vendor_id\": \"vendor-uuid\",\n    \"is_reimbursable\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/expenses/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "expenses"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Expense",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/expenses/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "expenses",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Expense",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reimbursed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/expenses/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "expenses",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Expense",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/expenses/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "expenses",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "List Documents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/documents/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "documents"
+              ],
+              "query": [
+                {
+                  "key": "content_type",
+                  "value": "property",
+                  "disabled": true
+                },
+                {
+                  "key": "object_id",
+                  "value": "property-uuid",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Upload Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "content_type",
+                  "value": "property",
+                  "type": "text"
+                },
+                {
+                  "key": "object_id",
+                  "value": "property-uuid",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "Titre Foncier",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "src": "/path/to/file.pdf",
+                  "type": "file"
+                },
+                {
+                  "key": "description",
+                  "value": "Property title deed",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/rentals/documents/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "documents"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Document",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/documents/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "documents",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Document",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/documents/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "documents",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/notifications/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Notification",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/notifications/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "notifications",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rentals/notifications/:id/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rentals",
+                "notifications",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "550e8400-e29b-41d4-a716-446655440000"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api"
+    }
+  ]
+}

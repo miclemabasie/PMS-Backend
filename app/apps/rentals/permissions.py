@@ -52,4 +52,6 @@ class IsTenantOrReadOnly(BasePermission):
 class CanManageProperty(BasePermission):
     def has_permission(self, request, view):
         user = request.user
+        if user.is_superuser:
+            return True
         return user.role in ["superadmin", "landlord", "propertymanager"]

@@ -699,7 +699,7 @@ class Vendor(TimeStampedUUIDModel):
     notes = models.TextField(_("Notes"), blank=True)
     is_active = models.BooleanField(_("Active"), default=True)
 
-    anguage = models.CharField(
+    language = models.CharField(
         max_length=2, choices=[("en", "English"), ("fr", "French")], default="en"
     )
     company_name_fr = models.CharField(
