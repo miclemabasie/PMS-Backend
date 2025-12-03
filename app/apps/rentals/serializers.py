@@ -264,7 +264,7 @@ class UnitSerializer(serializers.ModelSerializer):
 # ----------------------------------------------------------------------
 
 
-\class LeaseTenantSerializer(serializers.ModelSerializer):
+class LeaseTenantSerializer(serializers.ModelSerializer):
     tenant = TenantSerializer(read_only=True)
     tenant_id = serializers.PrimaryKeyRelatedField(
         queryset=Tenant.objects.all(), source="tenant", write_only=True
@@ -279,8 +279,7 @@ class LeaseSerializer(serializers.ModelSerializer):
     unit_detail = UnitSerializer(source="unit", read_only=True)
     unit_id = serializers.PrimaryKeyRelatedField(
         queryset=Unit.objects.all(), source="unit", write_only=True
-    )   
-    
+    )
     tenants = LeaseTenantSerializer(source="lease_tenants", many=True, read_only=True)
     tenant_ids = serializers.PrimaryKeyRelatedField(
         many=True, queryset=Tenant.objects.all(), write_only=True, required=False
@@ -294,14 +293,12 @@ class LeaseSerializer(serializers.ModelSerializer):
         model = Lease
         fields = [
             "id",
-            "unit",
             "unit_detail",
             "unit_id",
             "tenants",
             "tenant_ids",
             "start_date",
             "end_date",
-            "payment_term",
             "payment_term_detail",
             "payment_term_id",
             "rent_amount",
@@ -318,22 +315,23 @@ class LeaseSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["created_at", "updated_at"]
+        read_only_fields = [
+            "created_at",
+            "updated_at",
+            "status",
+        ]  # status is set automatically
 
     def create(self, validated_data):
         tenant_ids = validated_data.pop("tenant_ids", [])
         lease = super().create(validated_data)
-        if tenant_ids:
-            # Create LeaseTenant entries for each tenant (default is_primary=False)
-            for tenant in tenant_ids:
-                LeaseTenant.objects.create(lease=lease, tenant=tenant)
+        for tenant in tenant_ids:
+            LeaseTenant.objects.create(lease=lease, tenant=tenant)
         return lease
 
     def update(self, instance, validated_data):
         tenant_ids = validated_data.pop("tenant_ids", None)
         lease = super().update(instance, validated_data)
         if tenant_ids is not None:
-            # Replace tenants: remove existing, add new ones
             instance.lease_tenants.all().delete()
             for tenant in tenant_ids:
                 LeaseTenant.objects.create(lease=lease, tenant=tenant)

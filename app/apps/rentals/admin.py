@@ -18,6 +18,7 @@ from .models import (
     MaintenanceRequest,
     Expense,
     Document,
+    LeaseStatus,  # added for status constant
 )
 
 
@@ -346,7 +347,7 @@ class PropertyAdmin(admin.ModelAdmin):
             },
         ),
         ("Media", {"fields": ("images",)}),
-        ("Management", {"fields": ("managers", "is_active")}),
+        ("Management", {"fields": ("is_active",)}),  # FIX: removed invalid "managers"
         (
             "Metadata",
             {
@@ -427,17 +428,21 @@ class UnitAdmin(admin.ModelAdmin):
     property_link.short_description = "Property"
     property_link.admin_order_field = "property__name"
 
+    # FIXED: use proper query for active lease
     def current_lease_link(self, obj):
-        if obj.current_lease:
-            url = reverse("admin:rentals_lease_change", args=[obj.current_lease.pk])
-            return format_html('<a href="{}">Lease #{}</a>', url, obj.current_lease.pk)
+        active_lease = obj.leases.filter(status=LeaseStatus.ACTIVE).first()
+        if active_lease:
+            url = reverse("admin:rentals_lease_change", args=[active_lease.pk])
+            return format_html('<a href="{}">Lease #{}</a>', url, active_lease.pk)
         return "No active lease"
 
     current_lease_link.short_description = "Current Lease"
 
+    # FIXED: use proper query for active lease and its tenants
     def current_tenant(self, obj):
-        if obj.current_lease:
-            tenants = obj.current_lease.tenants.all()
+        active_lease = obj.leases.filter(status=LeaseStatus.ACTIVE).first()
+        if active_lease:
+            tenants = active_lease.tenants.all()
             if tenants.exists():
                 return ", ".join([str(t) for t in tenants])
         return "Vacant"

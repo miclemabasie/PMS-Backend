@@ -125,7 +125,7 @@ class PropertyService(BaseService[Property]):
             return property
 
     def get_properties_for_user(self, user):
-        if user.role == "superadmin":
+        if user.is_superuser:
             return self.get_all()
         elif hasattr(user, "owner_profile"):
             return self.repository.find_by_owner(user.owner_profile.id)
@@ -173,8 +173,8 @@ class LeaseService(BaseService[Lease]):
 
     @transaction.atomic
     def create_lease(self, data: dict, tenant_ids: List[str]) -> Lease:
-        unit_id = data.get("unit")
-        unit = self.unit_service.get_by_id(unit_id)
+        unit = data.get("unit")
+        # unit = self.unit_service.get_by_id(unit_id.id)
         if not unit:
             raise ValueError("Unit not found")
         if unit.status != "vacant":
@@ -190,7 +190,7 @@ class LeaseService(BaseService[Lease]):
                     lease=lease, tenant=tenant, is_primary=(tenant_id == tenant_ids[0])
                 )
         # Update unit status
-        self.unit_service.update_unit_status(unit_id, "occupied")
+        self.unit_service.update_unit_status(unit.id, "occupied")
         return lease
 
     @transaction.atomic
