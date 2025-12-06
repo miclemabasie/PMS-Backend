@@ -32,7 +32,7 @@ class UserMinimalSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "email", "first_name", "last_name", "phone"]
+        fields = ["id", "pkid", "email", "first_name", "last_name", "phone"]
 
 
 class PaymentTermSerializer(serializers.ModelSerializer):
@@ -51,6 +51,7 @@ class OwnerSerializer(serializers.ModelSerializer):
         model = Owner
         fields = [
             "id",
+            "pkid",
             "user",
             "user_id",
             "preferred_payout_method",
@@ -79,6 +80,7 @@ class ManagerSerializer(serializers.ModelSerializer):
         model = Manager
         fields = [
             "id",
+            "pkid",
             "user",
             "user_id",
             "commission_rate",
@@ -100,6 +102,7 @@ class TenantSerializer(serializers.ModelSerializer):
         model = Tenant
         fields = [
             "id",
+            "pkid",
             "user",
             "user_id",
             "id_number",
@@ -140,7 +143,7 @@ class PropertyOwnershipSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PropertyOwnership
-        fields = ["id", "owner", "owner_id", "percentage", "is_primary"]
+        fields = ["id", "pkid", "owner", "owner_id", "percentage", "is_primary"]
 
 
 class PropertySerializer(serializers.ModelSerializer):
@@ -163,6 +166,7 @@ class PropertySerializer(serializers.ModelSerializer):
         model = Property
         fields = [
             "id",
+            "pkid",
             "name",
             "property_type",
             "description",
@@ -230,6 +234,7 @@ class UnitSerializer(serializers.ModelSerializer):
         model = Unit
         fields = [
             "id",
+            "pkid",
             "property",
             "property_detail",
             "property_id",
@@ -272,7 +277,7 @@ class LeaseTenantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LeaseTenant
-        fields = ["id", "tenant", "tenant_id", "is_primary", "signed_at"]
+        fields = ["id", "pkid", "tenant", "tenant_id", "is_primary", "signed_at"]
 
 
 class LeaseSerializer(serializers.ModelSerializer):
@@ -293,6 +298,7 @@ class LeaseSerializer(serializers.ModelSerializer):
         model = Lease
         fields = [
             "id",
+            "pkid",
             "unit_detail",
             "unit_id",
             "tenants",
@@ -361,6 +367,7 @@ class PaymentSerializer(serializers.ModelSerializer):
         model = Payment
         fields = [
             "id",
+            "pkid",
             "lease",
             "lease_detail",
             "lease_id",
@@ -408,6 +415,7 @@ class VendorSerializer(serializers.ModelSerializer):
         model = Vendor
         fields = [
             "id",
+            "pkid",
             "company_name",
             "contact_name",
             "phone",
@@ -472,6 +480,7 @@ class MaintenanceRequestSerializer(serializers.ModelSerializer):
         model = MaintenanceRequest
         fields = [
             "id",
+            "pkid",
             "unit",
             "unit_detail",
             "unit_id",
@@ -532,6 +541,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
         model = Expense
         fields = [
             "id",
+            "pkid",
             "property",
             "property_detail",
             "property_id",
@@ -580,6 +590,7 @@ class DocumentSerializer(serializers.ModelSerializer):
         model = Document
         fields = [
             "id",
+            "pkid",
             "content_type",
             "object_id",
             "name",

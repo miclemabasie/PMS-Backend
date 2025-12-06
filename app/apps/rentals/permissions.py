@@ -5,7 +5,7 @@ from apps.rentals.models import Tenant
 class IsOwnerOrManagerOrSuperAdmin(BasePermission):
     def has_object_permission(self, request, view, obj):
         user = request.user
-        if user.role == "superadmin":
+        if user.is_superuser:
             return True
         # For Property objects
         if hasattr(obj, "ownership_records"):
