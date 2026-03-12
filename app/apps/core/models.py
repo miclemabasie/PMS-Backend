@@ -21,12 +21,12 @@ class TimeStampedUUIDModel(models.Model):
         default=uuid.uuid4,
         editable=False,
         unique=True,
-        db_index=True,   # Fast lookups for API usage
+        db_index=True,  # Fast lookups for API usage
     )
 
     created_at = models.DateTimeField(
         auto_now_add=True,
-        db_index=True,   # Useful for sorting & filtering
+        db_index=True,  # Useful for sorting & filtering
     )
 
     updated_at = models.DateTimeField(
@@ -49,4 +49,12 @@ class Gender(models.TextChoices):
 
     MALE = "male", _("Male")
     FEMALE = "female", _("Female")
+    OTHER = "other", _("Other")
+
+
+class PaymentMethod(models.TextChoices):
+    MTN_MOMO = "mtn_momo", _("MTN MoMo")
+    ORANGE_MONEY = "orange_money", _("Orange Money")
+    BANK_TRANSFER = "bank_transfer", _("Bank transfer")
+    CASH = "cash", _("Cash")
     OTHER = "other", _("Other")
