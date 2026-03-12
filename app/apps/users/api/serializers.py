@@ -14,6 +14,7 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
         model = User
         fields = [
             "id",
+            "pkid",
             "username",
             "email",
             "first_name",
@@ -40,6 +41,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id",
+            "pkid",
             "username",
             "email",
             "first_name",
@@ -74,6 +76,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = Profile
         fields = [
             "id",
+            "pkid",
             "user",
             "username",
             "email",
