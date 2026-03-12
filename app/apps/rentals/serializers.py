@@ -235,7 +235,6 @@ class UnitSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "pkid",
-            "property",
             "property_detail",
             "property_id",
             "unit_number",

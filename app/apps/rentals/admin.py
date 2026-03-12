@@ -213,7 +213,7 @@ class ManagerAdmin(admin.ModelAdmin):
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
     list_display = [
-        "user_link",
+        "user__username",
         "id_number",
         "emergency_contact_name",
         "created_at",
@@ -226,72 +226,26 @@ class TenantAdmin(admin.ModelAdmin):
         "id_number",
     ]
     autocomplete_fields = ["user"]
-    readonly_fields = ["id", "created_at", "updated_at", "active_lease_link"]
-    fieldsets = (
-        ("User Information", {"fields": ("user",)}),
-        ("Identification", {"fields": ("id_number", "id_document")}),
-        ("Contact Details", {"fields": ("email",)}),
-        (
-            "Emergency Contact",
-            {
-                "fields": (
-                    "emergency_contact_name",
-                    "emergency_contact_phone",
-                    "emergency_contact_relation",
-                )
-            },
-        ),
-        ("Employment", {"fields": ("employer", "job_title", "monthly_income")}),
-        (
-            "Guarantor",
-            {
-                "fields": (
-                    "guarantor_name",
-                    "guarantor_phone",
-                    "guarantor_email",
-                    "guarantor_id_document",
-                )
-            },
-        ),
-        (
-            "Additional Info",
-            {
-                "fields": (
-                    "notes",
-                    "language",
-                    "emergency_contact_name_fr",
-                    "employer_fr",
-                    "job_title_fr",
-                    "notes_fr",
-                    "guarantor_name_fr",
-                )
-            },
-        ),
-        ("Current Lease", {"fields": ("active_lease_link",)}),
-        (
-            "Metadata",
-            {"fields": ("id", "created_at", "updated_at"), "classes": ("collapse",)},
-        ),
-    )
+    readonly_fields = ["id", "created_at", "updated_at"]
     inlines = [DocumentInline]
 
-    def user_link(self, obj):
-        url = reverse("admin:users_user_change", args=[obj.user.pk])
-        return format_html(
-            '<a href="{}">{}</a>', url, obj.user.get_full_name() or obj.user.email
-        )
+    # def user_link(self, obj):
+    #     url = reverse("admin:users_user_change", args=[obj.user.pk])
+    #     return format_html(
+    #         '<a href="{}">{}</a>', url, obj.user.get_full_name() or obj.user.email
+    #     )
 
-    user_link.short_description = "User"
-    user_link.admin_order_field = "user__email"
+    # user_link.short_description = "User"
+    # user_link.admin_order_field = "user__email"
 
-    def active_lease_link(self, obj):
-        active_lease = obj.leases.filter(status="active").first()
-        if active_lease:
-            url = reverse("admin:rentals_lease_change", args=[active_lease.pk])
-            return format_html('<a href="{}">Lease #{}</a>', url, active_lease.pk)
-        return "No active lease"
+    # def active_lease_link(self, obj):
+    #     active_lease = obj.leases.filter(status="active").first()
+    #     if active_lease:
+    #         url = reverse("admin:rentals_lease_change", args=[active_lease.pk])
+    #         return format_html('<a href="{}">Lease #{}</a>', url, active_lease.pk)
+    #     return "No active lease"
 
-    active_lease_link.short_description = "Active Lease"
+    # active_lease_link.short_description = "Active Lease"
 
 
 @admin.register(Property)

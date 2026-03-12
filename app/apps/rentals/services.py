@@ -180,15 +180,21 @@ class LeaseService(BaseService[Lease]):
         if unit.status != "vacant":
             raise ValueError("Unit is not vacant")
 
+        # Remove tenant_ids from data
+        data.pop("tenant_ids", None)
+
         # Create lease
         lease = self.repository.create(**data)
         # Add tenants
         for tenant_id in tenant_ids:
-            tenant = self.tenant_repo.get(tenant_id)
+            tenant = self.tenant_repo.get_by_pkid(tenant_id)
             if tenant:
+                print("There was a tenant", tenant)
                 self.lease_tenant_repo.create(
                     lease=lease, tenant=tenant, is_primary=(tenant_id == tenant_ids[0])
                 )
+            else:
+                print("There was no tenant", tenant, tenant_ids)
         # Update unit status
         self.unit_service.update_unit_status(unit.id, "occupied")
         return lease
@@ -203,7 +209,7 @@ class LeaseService(BaseService[Lease]):
         lease.end_date = termination_date
         lease.save()
         # Update unit status
-        self.unit_service.update_unit_status(lease.unit_id, "vacant")
+        self.unit_service.update_unit_status(lease.unit.id, "vacant")
         return lease
 
     @transaction.atomic

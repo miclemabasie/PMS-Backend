@@ -20,6 +20,7 @@ class PropertyType(models.TextChoices):
     HOUSE = "house", _("Single family house")
     COMMERCIAL = "commercial", _("Commercial (shop/office)")
     LAND = "land", _("Land")
+    HOSTEL = "hostel", _("Hostel")
     OTHER = "other", _("Other")
 
 
@@ -225,6 +226,7 @@ class Tenant(TimeStampedUUIDModel):
         related_name="tenant_profile",
         verbose_name=_("User"),
     )
+    is_primary = models.BooleanField(_("Primary tenant"), default=False)
     id_number = models.CharField(_("ID number (CNI/Passport)"), max_length=50)
     id_document = models.FileField(
         _("ID scan"), upload_to="tenants/ids/", blank=True, null=True
