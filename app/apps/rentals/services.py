@@ -77,17 +77,6 @@ class ManagerService(BaseService[Manager]):
 
 
 # ----------------------------------------------------------------------
-# Tenant Service
-# ----------------------------------------------------------------------
-class TenantService(BaseService[Tenant]):
-    def __init__(self):
-        super().__init__(TenantRepository())
-
-    def get_tenants_for_property(self, property_id):
-        return self.repository.find_by_property(property_id)
-
-
-# ----------------------------------------------------------------------
 # Property Service
 # ----------------------------------------------------------------------
 class PropertyService(BaseService[Property]):
