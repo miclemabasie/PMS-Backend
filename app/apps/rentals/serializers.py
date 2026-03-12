@@ -2,7 +2,6 @@ from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from .models import (
     PaymentTerm,
-    Manager,
     Unit,
     Lease,
     LeaseTenant,
@@ -17,7 +16,7 @@ from apps.users.models import User  # adjust import as needed
 from django.contrib.contenttypes.models import ContentType
 from apps.tenants.serializers import TenantSerializer
 from apps.users.api.serializers import UserMinimalSerializer
-from apps.properties.models import Property
+from apps.properties.models import Property, Manager
 from apps.properties.serializers import PropertySerializer, ManagerSerializer
 
 # ----------------------------------------------------------------------

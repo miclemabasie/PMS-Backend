@@ -9,7 +9,6 @@ from .permissions import (
     IsTenantOrReadOnly,
 )
 from .services import (
-    PropertyService,
     UnitService,
     LeaseService,
     PaymentService,
@@ -17,8 +16,6 @@ from .services import (
     VendorService,
     ExpenseService,
     DocumentService,
-    OwnerService,
-    ManagerService,
     PaymentTermService,
 )
 from .serializers import (
@@ -31,8 +28,6 @@ from .serializers import (
     ExpenseSerializer,
     DocumentSerializer,
     PaymentTermSerializer,
-    OwnerSerializer,
-    ManagerSerializer,
 )
 from .utils import StandardResultsSetPagination
 
