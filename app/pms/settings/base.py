@@ -57,6 +57,7 @@ LOCAL_APPS = [
     "apps.rentals.apps.RentalsConfig",
     "apps.tenants.apps.TenantsConfig",
     "apps.properties.apps.PropertiesConfig",
+    "apps.payments.apps.PaymentsConfig",
 ]
 
 THIRD_PARTY_APPS = [

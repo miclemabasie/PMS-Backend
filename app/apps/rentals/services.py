@@ -3,7 +3,6 @@ from django.db import transaction
 from django.utils import timezone
 import logging
 from .models import (
-    Unit,
     Lease,
     Payment,
     MaintenanceRequest,
@@ -13,9 +12,7 @@ from .models import (
     PaymentTerm,
 )
 from .repositories import (
-    UnitRepository,
     LeaseRepository,
-    TenantRepository,
     PaymentRepository,
     MaintenanceRequestRepository,
     VendorRepository,
@@ -25,6 +22,8 @@ from .repositories import (
     LeaseTenantRepository,
 )
 from apps.core.base_service import BaseService
+from apps.tenants.repositories import TenantRepository
+from apps.properties.services import UnitService
 
 logger = logging.getLogger(__name__)
 
@@ -35,32 +34,6 @@ logger = logging.getLogger(__name__)
 class PaymentTermService(BaseService[PaymentTerm]):
     def __init__(self):
         super().__init__(PaymentTermRepository())
-
-
-# ----------------------------------------------------------------------
-# Unit Service
-# ----------------------------------------------------------------------
-class UnitService(BaseService[Unit]):
-    def __init__(self):
-        super().__init__(UnitRepository())
-        self.lease_repo = LeaseRepository()
-
-    def get_units_for_property(self, property_id):
-        return self.repository.find_by_property(property_id)
-
-    def get_available_units(self, property_id=None):
-        filters = {"status": "vacant"}
-        if property_id:
-            filters["property_id"] = property_id
-        return self.repository.filter(**filters)
-
-    def update_unit_status(self, unit_id, status):
-        unit = self.get_by_id(unit_id)
-        if unit:
-            unit.status = status
-            unit.save()
-            return unit
-        return None
 
 
 # ----------------------------------------------------------------------

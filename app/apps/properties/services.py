@@ -7,12 +7,14 @@ from .models import (
     Owner,
     Manager,
     PropertyOwnership,
+    Unit,
 )
 from .repositories import (
     PropertyRepository,
     OwnerRepository,
     ManagerRepository,
     PropertyOwnershipRepository,
+    UnitRepository,
 )
 from apps.core.base_service import BaseService
 
@@ -97,3 +99,34 @@ class PropertyService(BaseService[Property]):
             return self.repository.find_by_manager(user.manager_profile.id)
         else:
             return []
+
+
+# ----------------------------------------------------------------------
+# Unit Service
+# ----------------------------------------------------------------------
+class UnitService(BaseService[Unit]):
+    def __init__(self):
+        super().__init__(UnitRepository())
+        # self.lease_repo = LeaseRepository()
+
+    def get_units_for_property(self, property_id):
+        return self.repository.find_by_property(property_id)
+
+    def get_available_units(self, property_id=None):
+        filters = {"status": "vacant"}
+        if property_id:
+            filters["property_id"] = property_id
+        return self.repository.filter(**filters)
+
+    def update_unit_status(self, unit_id, status):
+        unit = self.get_by_id(unit_id)
+        if unit:
+            unit.status = status
+            unit.save()
+            return unit
+        return None
+
+
+class PropertyOwnershipService(BaseService[PropertyOwnership]):
+    def __init__(self):
+        super().__init__(PropertyOwnershipRepository())

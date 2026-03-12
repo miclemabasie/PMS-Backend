@@ -3,8 +3,8 @@ from django.shortcuts import render
 from .models import Property, Owner, PropertyOwnership, Manager, Unit
 from apps.users.api.serializers import UserMinimalSerializer
 from apps.users.models import User
-from apps.rentals.serializers import PaymentSerializer, PaymentTermSerializer
-from apps.rentals.models import PaymentTerm
+from apps.payments.serializers import PaymentSerializer, PaymentTermSerializer
+from apps.payments.models import PaymentTerm
 
 
 class OwnerSerializer(serializers.ModelSerializer):

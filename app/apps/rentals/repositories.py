@@ -1,10 +1,5 @@
 from .models import (
     PaymentTerm,
-    Owner,
-    Manager,
-    Tenant,
-    Property,
-    PropertyOwnership,
     Unit,
     Lease,
     LeaseTenant,
@@ -20,51 +15,6 @@ from apps.core.base_repository import DjangoRepository
 class PaymentTermRepository(DjangoRepository[PaymentTerm]):
     def __init__(self):
         super().__init__(PaymentTerm)
-
-
-class OwnerRepository(DjangoRepository[Owner]):
-    def __init__(self):
-        super().__init__(Owner)
-
-
-class ManagerRepository(DjangoRepository[Manager]):
-    def __init__(self):
-        super().__init__(Manager)
-
-
-class TenantRepository(DjangoRepository[Tenant]):
-    def __init__(self):
-        super().__init__(Tenant)
-
-    def find_by_property(self, property_id):
-        return self.model_class.objects.filter(leases__unit__property__id=property_id)
-
-    def get_by_pkid(self, pkid):
-        return self.model_class.objects.get(pkid=pkid)
-
-
-class PropertyRepository(DjangoRepository[Property]):
-    def __init__(self):
-        super().__init__(Property)
-
-    def find_by_owner(self, owner_id):
-        return self.model_class.objects.filter(ownership_records__owner_id=owner_id)
-
-    def find_by_manager(self, manager_id):
-        return self.model_class.objects.filter(managers__id=manager_id)
-
-
-class PropertyOwnershipRepository(DjangoRepository[PropertyOwnership]):
-    def __init__(self):
-        super().__init__(PropertyOwnership)
-
-
-class UnitRepository(DjangoRepository[Unit]):
-    def __init__(self):
-        super().__init__(Unit)
-
-    def find_by_property(self, property_id):
-        return self.model_class.objects.filter(property_id=property_id)
 
 
 class LeaseRepository(DjangoRepository[Lease]):

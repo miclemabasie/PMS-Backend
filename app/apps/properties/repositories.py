@@ -1,9 +1,4 @@
-from .models import (
-    Owner,
-    Manager,
-    Property,
-    PropertyOwnership,
-)
+from .models import Owner, Manager, Property, PropertyOwnership, Unit
 from apps.core.base_repository import DjangoRepository
 
 
@@ -31,3 +26,11 @@ class PropertyRepository(DjangoRepository[Property]):
 class PropertyOwnershipRepository(DjangoRepository[PropertyOwnership]):
     def __init__(self):
         super().__init__(PropertyOwnership)
+
+
+class UnitRepository(DjangoRepository[Unit]):
+    def __init__(self):
+        super().__init__(Unit)
+
+    def find_by_property(self, property_id):
+        return self.model_class.objects.filter(property_id=property_id)
