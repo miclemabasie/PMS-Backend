@@ -58,3 +58,11 @@ class PaymentMethod(models.TextChoices):
     BANK_TRANSFER = "bank_transfer", _("Bank transfer")
     CASH = "cash", _("Cash")
     OTHER = "other", _("Other")
+
+
+class PaymentType(models.TextChoices):
+    RENT = "rent", _("Rent")
+    DEPOSIT = "deposit", _("Security deposit")
+    FEE = "fee", _("Fee / penalty")
+    UTILITY = "utility", _("Utility bill")
+    OTHER = "other", _("Other")

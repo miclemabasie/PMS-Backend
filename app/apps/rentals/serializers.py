@@ -17,7 +17,11 @@ from django.contrib.contenttypes.models import ContentType
 from apps.tenants.serializers import TenantSerializer
 from apps.users.api.serializers import UserMinimalSerializer
 from apps.properties.models import Property, Manager
-from apps.properties.serializers import PropertySerializer, ManagerSerializer
+from apps.properties.serializers import (
+    PropertySerializer,
+    ManagerSerializer,
+    UnitSerializer,
+)
 
 # ----------------------------------------------------------------------
 # Helper serializers for nested relations (minimal representations)
@@ -33,60 +37,6 @@ class PaymentTermSerializer(serializers.ModelSerializer):
 # ----------------------------------------------------------------------
 # Property and related serializers
 # ----------------------------------------------------------------------
-
-
-# ----------------------------------------------------------------------
-# Unit serializers
-# ----------------------------------------------------------------------
-
-
-class UnitSerializer(serializers.ModelSerializer):
-    property_detail = PropertySerializer(source="property", read_only=True)
-    property_id = serializers.PrimaryKeyRelatedField(
-        queryset=Property.objects.all(), source="property", write_only=True
-    )
-    default_payment_term_detail = PaymentTermSerializer(
-        source="default_payment_term", read_only=True
-    )
-    default_payment_term_id = serializers.PrimaryKeyRelatedField(
-        queryset=PaymentTerm.objects.all(),
-        source="default_payment_term",
-        write_only=True,
-        required=False,
-        allow_null=True,
-    )
-
-    class Meta:
-        model = Unit
-        fields = [
-            "id",
-            "pkid",
-            "property_detail",
-            "property_id",
-            "unit_number",
-            "unit_type",
-            "floor",
-            "size_m2",
-            "bedrooms",
-            "bathrooms",
-            "default_rent_amount",
-            "default_payment_term",
-            "default_payment_term_detail",
-            "default_payment_term_id",
-            "default_security_deposit",
-            "status",
-            "amenities",
-            "amenities_fr",
-            "images",
-            "water_meter_number",
-            "electricity_meter_number",
-            "has_prepaid_meter",
-            "custom_fields",
-            "language",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["created_at", "updated_at"]
 
 
 # ----------------------------------------------------------------------

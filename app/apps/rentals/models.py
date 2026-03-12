@@ -8,21 +8,11 @@ from model_utils import FieldTracker
 from apps.core.models import TimeStampedUUIDModel
 from apps.users.models import User
 from apps.tenants.models import Tenant
-from apps.properties.models import Property, Owner, Manager
+from apps.properties.models import Property, Manager, Unit
 
 # ----------------------------------------------------------------------
 # Choices (Cameroon‑aware)
 # ----------------------------------------------------------------------
-
-
-class UnitType(models.TextChoices):
-    STUDIO = "studio", _("Studio")
-    ONE_BED = "1_bed", _("1 bedroom")
-    TWO_BED = "2_bed", _("2 bedrooms")
-    THREE_BED = "3_bed", _("3 bedrooms")
-    SHOP = "shop", _("Shop")
-    OFFICE = "office", _("Office")
-    OTHER = "other", _("Other")
 
 
 class LeaseStatus(models.TextChoices):
@@ -117,99 +107,6 @@ class PaymentTerm(TimeStampedUUIDModel):
 # ----------------------------------------------------------------------
 # Role‑specific profiles (linked to User)
 # ----------------------------------------------------------------------
-
-
-# ----------------------------------------------------------------------
-# Core property models
-# ----------------------------------------------------------------------
-
-
-class Unit(TimeStampedUUIDModel):
-    """
-    A rentable unit within a property.
-    """
-
-    property = models.ForeignKey(
-        Property,
-        on_delete=models.CASCADE,
-        related_name="units",
-        verbose_name=_("Property"),
-    )
-    unit_number = models.CharField(_("Unit number / name"), max_length=50)
-    unit_type = models.CharField(
-        _("Unit type"),
-        max_length=20,
-        choices=UnitType.choices,
-        default=UnitType.ONE_BED,
-    )
-    floor = models.PositiveSmallIntegerField(_("Floor"), blank=True, null=True)
-    size_m2 = models.PositiveIntegerField(_("Size (m²)"), blank=True, null=True)
-    bedrooms = models.PositiveSmallIntegerField(_("Bedrooms"), default=1)
-    bathrooms = models.PositiveSmallIntegerField(_("Bathrooms"), default=1)
-    default_rent_amount = models.DecimalField(
-        _("Default rent amount (XAF)"),
-        max_digits=10,
-        decimal_places=0,
-        help_text=_("Default amount per payment interval (if no lease override)"),
-    )
-    default_payment_term = models.ForeignKey(
-        PaymentTerm,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="units",
-        verbose_name=_("Default payment term"),
-        help_text=_("Default interval for this unit (e.g., monthly, yearly)"),
-    )
-    default_security_deposit = models.DecimalField(
-        _("Default security deposit (XAF)"),
-        max_digits=10,
-        decimal_places=0,
-        blank=True,
-        null=True,
-    )
-    status = models.CharField(
-        _("Status"),
-        max_length=20,
-        choices=[
-            ("vacant", _("Vacant")),
-            ("occupied", _("Occupied")),
-            ("maintenance", _("Maintenance")),
-        ],
-        default="vacant",
-        db_index=True,
-    )
-    amenities = models.JSONField(_("Amenities"), default=list, blank=True)
-    images = models.JSONField(_("Image URLs"), default=list, blank=True)
-    # Cameroon specifics
-    water_meter_number = models.CharField(
-        _("Water meter number"), max_length=50, blank=True
-    )
-    electricity_meter_number = models.CharField(
-        _("Electricity meter number"), max_length=50, blank=True
-    )
-    has_prepaid_meter = models.BooleanField(_("Prepaid meter"), default=False)
-    # Flexible custom fields
-    custom_fields = models.JSONField(_("Custom fields"), default=dict, blank=True)
-
-    language = models.CharField(
-        max_length=2, choices=[("en", "English"), ("fr", "French")], default="en"
-    )
-    amenities_fr = models.JSONField(_("Amenities (French)"), default=list, blank=True)
-
-    tracker = FieldTracker(fields=["amenities"])
-
-    class Meta:
-        verbose_name = _("Unit")
-        verbose_name_plural = _("Units")
-        unique_together = [["property", "unit_number"]]
-        indexes = [
-            models.Index(fields=["property", "status"]),
-            models.Index(fields=["unit_number"]),
-        ]
-
-    def __str__(self):
-        return f"{self.property.name} - {self.unit_number}"
 
 
 # ----------------------------------------------------------------------
