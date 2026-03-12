@@ -7,7 +7,6 @@ from .models import (
     PaymentTerm,
     Owner,
     Manager,
-    Tenant,
     Property,
     PropertyOwnership,
     Unit,
@@ -109,11 +108,6 @@ class DocumentInline(GenericTabularInline):
     readonly_fields = ["created_at"]
 
 
-# ----------------------------------------------------------------------
-# Model Admins
-# ----------------------------------------------------------------------
-
-
 @admin.register(PaymentTerm)
 class PaymentTermAdmin(admin.ModelAdmin):
     list_display = ["name", "interval_months", "description", "created_at"]
@@ -208,44 +202,6 @@ class ManagerAdmin(admin.ModelAdmin):
 
     user_link.short_description = "User"
     user_link.admin_order_field = "user__email"
-
-
-@admin.register(Tenant)
-class TenantAdmin(admin.ModelAdmin):
-    list_display = [
-        "user__username",
-        "id_number",
-        "emergency_contact_name",
-        "created_at",
-    ]
-    list_filter = ["created_at"]
-    search_fields = [
-        "user__email",
-        "user__first_name",
-        "user__last_name",
-        "id_number",
-    ]
-    autocomplete_fields = ["user"]
-    readonly_fields = ["id", "created_at", "updated_at"]
-    inlines = [DocumentInline]
-
-    # def user_link(self, obj):
-    #     url = reverse("admin:users_user_change", args=[obj.user.pk])
-    #     return format_html(
-    #         '<a href="{}">{}</a>', url, obj.user.get_full_name() or obj.user.email
-    #     )
-
-    # user_link.short_description = "User"
-    # user_link.admin_order_field = "user__email"
-
-    # def active_lease_link(self, obj):
-    #     active_lease = obj.leases.filter(status="active").first()
-    #     if active_lease:
-    #         url = reverse("admin:rentals_lease_change", args=[active_lease.pk])
-    #         return format_html('<a href="{}">Lease #{}</a>', url, active_lease.pk)
-    #     return "No active lease"
-
-    # active_lease_link.short_description = "Active Lease"
 
 
 @admin.register(Property)

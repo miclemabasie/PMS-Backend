@@ -104,15 +104,15 @@ populate_test_data:
 	docker compose exec api python manage.py populate_test_data --count 100 --seed 123
 
  # Start fresh (deletes all data and resets state)
- populate_test_data_flush:
- 	docker compose exec api python manage.py populate_test_data --flush --count 100
+populate_test_data_flush:
+	docker compose exec api python manage.py populate_test_data --flush --count 100
 
- # If it fails (e.g., after 30 properties), fix the error and run again WITHOUT --flush
- populate_test_data_resume:
+
+populate_test_data_resume:
 	docker compose exec api python manage.py populate_test_data --count 100
 
- # Reset state without deleting data (if you want to restart sections manually)
- populate_test_data_reset:
+# Reset state without deleting data (if you want to restart sections manually)
+populate_test_data_reset:
 	docker compose exec api python manage.py populate_test_data --reset --count 100
 # ----------------------------------------------------------------------------
 # Elasticsearch Commands
