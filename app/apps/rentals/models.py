@@ -8,6 +8,7 @@ from model_utils import FieldTracker
 from apps.core.models import TimeStampedUUIDModel
 from apps.users.models import User
 from apps.tenants.models import Tenant
+from apps.properties.models import Property, Owner, Manager
 
 # ----------------------------------------------------------------------
 # Choices (Cameroon‑aware)
@@ -118,78 +119,9 @@ class PaymentTerm(TimeStampedUUIDModel):
 # ----------------------------------------------------------------------
 
 
-class Manager(TimeStampedUUIDModel):
-    """
-    Property manager. Linked to a User account.
-    """
-
-    user = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        related_name="manager_profile",
-        verbose_name=_("User"),
-    )
-    commission_rate = models.DecimalField(
-        _("Commission rate (%)"),
-        max_digits=5,
-        decimal_places=2,
-        default=0.0,
-        validators=[MinValueValidator(0), MaxValueValidator(100)],
-    )
-    managed_properties = models.ManyToManyField(
-        "Property",
-        related_name="managers",
-        blank=True,
-        verbose_name=_("Managed properties"),
-    )
-    is_active = models.BooleanField(_("Active"), default=True)
-
-    class Meta:
-        verbose_name = _("Manager")
-        verbose_name_plural = _("Managers")
-        indexes = [
-            models.Index(fields=["user"]),
-        ]
-
-    def __str__(self):
-        return f"Manager: {self.user.get_full_name()}"
-
-
 # ----------------------------------------------------------------------
 # Core property models
 # ----------------------------------------------------------------------
-
-
-class PropertyOwnership(TimeStampedUUIDModel):
-    """
-    Through model for Property ↔ Owner with ownership percentage.
-    """
-
-    property = models.ForeignKey(
-        Property, on_delete=models.CASCADE, related_name="ownership_records"
-    )
-    owner = models.ForeignKey(
-        Owner, on_delete=models.CASCADE, related_name="ownership_records"
-    )
-    percentage = models.DecimalField(
-        _("Ownership percentage"),
-        max_digits=5,
-        decimal_places=2,
-        validators=[MinValueValidator(0), MaxValueValidator(100)],
-        default=100.0,
-    )
-    is_primary = models.BooleanField(_("Primary owner"), default=False)
-
-    class Meta:
-        verbose_name = _("Property ownership")
-        verbose_name_plural = _("Property ownerships")
-        unique_together = [["property", "owner"]]
-        indexes = [
-            models.Index(fields=["property", "owner"]),
-        ]
-
-    def __str__(self):
-        return f"{self.owner} owns {self.percentage}% of {self.property}"
 
 
 class Unit(TimeStampedUUIDModel):

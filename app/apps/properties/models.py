@@ -1,9 +1,10 @@
 from django.db import models
-from apps.core.models import TimeStampedUUIDModel
+from apps.core.models import TimeStampedUUIDModel, PaymentMethod
 from django_countries.fields import CountryField
 from django.utils.translation import gettext_lazy as _
 from apps.users.models import User
 from phonenumber_field.modelfields import PhoneNumberField
+from django.core.validators import MinValueValidator, MaxValueValidator
 from model_utils import FieldTracker
 
 
@@ -16,14 +17,6 @@ class PropertyType(models.TextChoices):
     COMMERCIAL = "commercial", _("Commercial (shop/office)")
     LAND = "land", _("Land")
     HOSTEL = "hostel", _("Hostel")
-    OTHER = "other", _("Other")
-
-
-class PaymentMethod(models.TextChoices):
-    MTN_MOMO = "mtn_momo", _("MTN MoMo")
-    ORANGE_MONEY = "orange_money", _("Orange Money")
-    BANK_TRANSFER = "bank_transfer", _("Bank transfer")
-    CASH = "cash", _("Cash")
     OTHER = "other", _("Other")
 
 
@@ -136,3 +129,72 @@ class Property(TimeStampedUUIDModel):
 
     def __str__(self):
         return self.name
+
+
+class PropertyOwnership(TimeStampedUUIDModel):
+    """
+    Through model for Property ↔ Owner with ownership percentage.
+    """
+
+    property = models.ForeignKey(
+        Property, on_delete=models.CASCADE, related_name="ownership_records"
+    )
+    owner = models.ForeignKey(
+        Owner, on_delete=models.CASCADE, related_name="ownership_records"
+    )
+    percentage = models.DecimalField(
+        _("Ownership percentage"),
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        default=100.0,
+    )
+    is_primary = models.BooleanField(_("Primary owner"), default=False)
+
+    class Meta:
+        verbose_name = _("Property ownership")
+        verbose_name_plural = _("Property ownerships")
+        unique_together = [["property", "owner"]]
+        indexes = [
+            models.Index(fields=["property", "owner"]),
+        ]
+
+    def __str__(self):
+        return f"{self.owner} owns {self.percentage}% of {self.property}"
+
+
+class Manager(TimeStampedUUIDModel):
+    """
+    Property manager. Linked to a User account.
+    """
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="manager_profile",
+        verbose_name=_("User"),
+    )
+    commission_rate = models.DecimalField(
+        _("Commission rate (%)"),
+        max_digits=5,
+        decimal_places=2,
+        default=0.0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    managed_properties = models.ManyToManyField(
+        "Property",
+        related_name="managers",
+        blank=True,
+        verbose_name=_("Managed properties"),
+    )
+    is_active = models.BooleanField(_("Active"), default=True)
+
+    class Meta:
+        verbose_name = _("Manager")
+        verbose_name_plural = _("Managers")
+        indexes = [
+            models.Index(fields=["user"]),
+        ]
+
+    def __str__(self):
+        return f"Manager: {self.user.get_full_name()}"

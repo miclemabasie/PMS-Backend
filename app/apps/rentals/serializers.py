@@ -2,10 +2,7 @@ from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from .models import (
     PaymentTerm,
-    Owner,
     Manager,
-    Property,
-    PropertyOwnership,
     Unit,
     Lease,
     LeaseTenant,
@@ -20,6 +17,8 @@ from apps.users.models import User  # adjust import as needed
 from django.contrib.contenttypes.models import ContentType
 from apps.tenants.serializers import TenantSerializer
 from apps.users.api.serializers import UserMinimalSerializer
+from apps.properties.models import Property
+from apps.properties.serializers import PropertySerializer, ManagerSerializer
 
 # ----------------------------------------------------------------------
 # Helper serializers for nested relations (minimal representations)
@@ -32,134 +31,9 @@ class PaymentTermSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "interval_months", "description"]
 
 
-class OwnerSerializer(serializers.ModelSerializer):
-    user = UserMinimalSerializer(read_only=True)
-    user_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), source="user", write_only=True
-    )
-
-    class Meta:
-        model = Owner
-        fields = [
-            "id",
-            "pkid",
-            "user",
-            "user_id",
-            "preferred_payout_method",
-            "mobile_money_number",
-            "bank_account_name",
-            "bank_name",
-            "bank_account_number",
-            "bank_code",
-            "tax_id",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["created_at", "updated_at"]
-
-
-class ManagerSerializer(serializers.ModelSerializer):
-    user = UserMinimalSerializer(read_only=True)
-    user_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), source="user", write_only=True
-    )
-    managed_properties = serializers.PrimaryKeyRelatedField(
-        many=True, read_only=True  # or use a nested representation if needed
-    )
-
-    class Meta:
-        model = Manager
-        fields = [
-            "id",
-            "pkid",
-            "user",
-            "user_id",
-            "commission_rate",
-            "managed_properties",
-            "is_active",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["created_at", "updated_at"]
-
-
 # ----------------------------------------------------------------------
 # Property and related serializers
 # ----------------------------------------------------------------------
-
-
-class PropertyOwnershipSerializer(serializers.ModelSerializer):
-    owner = OwnerSerializer(read_only=True)
-    owner_id = serializers.PrimaryKeyRelatedField(
-        queryset=Owner.objects.all(), source="owner", write_only=True
-    )
-
-    class Meta:
-        model = PropertyOwnership
-        fields = ["id", "pkid", "owner", "owner_id", "percentage", "is_primary"]
-
-
-class PropertySerializer(serializers.ModelSerializer):
-    owners = PropertyOwnershipSerializer(
-        source="ownership_records", many=True, read_only=True
-    )
-    managers = ManagerSerializer(many=True, read_only=True)
-    manager_ids = serializers.PrimaryKeyRelatedField(
-        many=True,
-        queryset=Manager.objects.all(),
-        source="managers",
-        write_only=True,
-        required=False,
-    )
-    units = serializers.PrimaryKeyRelatedField(
-        many=True, read_only=True
-    )  # or use UnitSerializer with depth
-
-    class Meta:
-        model = Property
-        fields = [
-            "id",
-            "pkid",
-            "name",
-            "property_type",
-            "description",
-            "language",
-            "name_fr",
-            "description_fr",
-            "amenities",
-            "amenities_fr",
-            "address_line1",
-            "address_line2",
-            "city",
-            "state",
-            "country",
-            "postal_code",
-            "has_generator",
-            "has_water_tank",
-            "images",
-            "owners",
-            "managers",
-            "manager_ids",
-            "units",
-            "is_active",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["created_at", "updated_at"]
-
-    def create(self, validated_data):
-        managers = validated_data.pop("managers", [])
-        property = super().create(validated_data)
-        if managers:
-            property.managers.set(managers)
-        return property
-
-    def update(self, instance, validated_data):
-        managers = validated_data.pop("managers", None)
-        property = super().update(instance, validated_data)
-        if managers is not None:
-            property.managers.set(managers)
-        return property
 
 
 # ----------------------------------------------------------------------
@@ -570,29 +444,3 @@ class DocumentSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
-
-
-# class NotificationSerializer(serializers.ModelSerializer):
-#     recipient_detail = UserMinimalSerializer(source="recipient", read_only=True)
-#     recipient_id = serializers.PrimaryKeyRelatedField(
-#         queryset=User.objects.all(), source="recipient", write_only=True
-#     )
-
-#     class Meta:
-#         model = Notification
-#         fields = [
-#             "id",
-#             "recipient",
-#             "recipient_detail",
-#             "recipient_id",
-#             "notification_type",
-#             "subject",
-#             "body",
-#             "status",
-#             "sent_at",
-#             "provider_message_id",
-#             "error_message",
-#             "created_at",
-#             "updated_at",
-#         ]
-#         read_only_fields = ["created_at", "updated_at"]
