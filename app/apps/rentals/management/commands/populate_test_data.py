@@ -252,11 +252,6 @@ class Command(BaseCommand):
                 "interval_months": 12,
                 "description": "Pay once per year",
             },
-            {
-                "name": "Weekly",
-                "interval_months": 0.25,
-                "description": "Pay every week",
-            },
         ]
         self.payment_terms = {}
         for term_data in terms:

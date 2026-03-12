@@ -1,6 +1,7 @@
 from typing import List, Optional
 from django.db import transaction
 from django.utils import timezone
+import logging
 from .models import (
     Property,
     Unit,
@@ -34,6 +35,8 @@ from .repositories import (
     LeaseTenantRepository,
 )
 from apps.core.base_service import BaseService
+
+logger = logging.getLogger(__name__)
 
 
 # ----------------------------------------------------------------------
@@ -186,15 +189,19 @@ class LeaseService(BaseService[Lease]):
         # Create lease
         lease = self.repository.create(**data)
         # Add tenants
+        added_tenants = []
         for tenant_id in tenant_ids:
             tenant = self.tenant_repo.get_by_pkid(tenant_id)
             if tenant:
-                print("There was a tenant", tenant)
+                logger.debug("Adding tenant %s to lease %s", tenant_id, lease.id)
                 self.lease_tenant_repo.create(
                     lease=lease, tenant=tenant, is_primary=(tenant_id == tenant_ids[0])
                 )
+                added_tenants.append(tenant_id)
             else:
-                print("There was no tenant", tenant, tenant_ids)
+                logger.warning("Tenant not found: %s", tenant_id)
+        if not added_tenants:
+            raise ValueError("No valid tenants found for the provided tenant_ids")
         # Update unit status
         self.unit_service.update_unit_status(unit.id, "occupied")
         return lease

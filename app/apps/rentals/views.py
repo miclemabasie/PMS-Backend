@@ -308,9 +308,20 @@ class PropertyDetailView(APIView):
         return Response(serializer.errors, status=400)
 
     def patch(self, request, pk):
-        return self.put(
-            request, pk
-        )  # allow partial via put with partial=True in serializer
+        property = self.service.get_by_id(pk)
+        if not property:
+            return Response({"detail": "Not found"}, status=404)
+        self.check_object_permissions(request, property)
+        serializer = PropertySerializer(
+            property, data=request.data, partial=True, context={"request": request}
+        )
+        if serializer.is_valid():
+            updated = self.service.update_property(
+                pk, serializer.validated_data, manager_ids=request.data.get("managers")
+            )
+            output = PropertySerializer(updated, context={"request": request})
+            return Response(output.data)
+        return Response(serializer.errors, status=400)
 
     def delete(self, request, pk):
         property = self.service.get_by_id(pk)
@@ -624,12 +635,12 @@ class MaintenanceRequestListCreateView(APIView):
 
     def get(self, request):
         unit_id = request.query_params.get("unit")
-        status = request.query_params.get("status")
+        status_filter = request.query_params.get("status")
         filters = {}
         if unit_id:
             filters["unit_id"] = unit_id
-        if status:
-            filters["status"] = status
+        if status_filter:
+            filters["status"] = status_filter
         # For tenants, show only their unit's requests
         if hasattr(request.user, "tenant_profile"):
             tenant = request.user.tenant_profile
@@ -642,13 +653,14 @@ class MaintenanceRequestListCreateView(APIView):
         return self.paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
-        # If tenant, set tenant automatically
-        if hasattr(request.user, "tenant_profile"):
-            request.data["tenant"] = request.user.tenant_profile.id
+
         serializer = MaintenanceRequestSerializer(
             data=request.data, context={"request": request}
         )
         if serializer.is_valid():
+            # If tenant, set tenant automatically
+            if hasattr(request.user, "tenant_profile"):
+                request.data["tenant"] = request.user.tenant_profile
             req = self.service.create(**serializer.validated_data)
             output = MaintenanceRequestSerializer(req, context={"request": request})
             return Response(output.data, status=201)
@@ -903,10 +915,13 @@ class DocumentDetailView(APIView):
         doc = self.service.get_by_id(pk)
         if not doc:
             return Response({"detail": "Not found"}, status=404)
-        # Permission: only users with access to the linked object
-        # We'll trust that the object's permissions are handled by the generic relation.
-        # For simplicity, we'll allow if user can view the related object.
-        # This could be enhanced.
+        # Check permission on the related object
+        related_obj = doc.content_object
+        if related_obj and hasattr(self, "check_object_permissions"):
+            try:
+                self.check_object_permissions(request, related_obj)
+            except Exception:
+                return Response({"detail": "Permission denied"}, status=403)
         serializer = DocumentSerializer(doc, context={"request": request})
         return Response(serializer.data)
 
@@ -915,7 +930,7 @@ class DocumentDetailView(APIView):
         if not doc:
             return Response({"detail": "Not found"}, status=404)
         # Only uploader or admin can delete
-        if request.user.role != "superadmin" and doc.uploaded_by != request.user:
+        if not request.user.is_superuser and doc.uploaded_by != request.user:
             return Response({"detail": "Permission denied"}, status=403)
         self.service.delete(pk)
         return Response(status=204)

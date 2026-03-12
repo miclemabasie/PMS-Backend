@@ -37,8 +37,7 @@ class TenantRepository(DjangoRepository[Tenant]):
         super().__init__(Tenant)
 
     def find_by_property(self, property_id):
-        print("this was called !####")
-        return self.model_class.objects.filter(leases__property_id=property_id)
+        return self.model_class.objects.filter(leases__unit__property__id=property_id)
 
     def get_by_pkid(self, pkid):
         return self.model_class.objects.get(pkid=pkid)

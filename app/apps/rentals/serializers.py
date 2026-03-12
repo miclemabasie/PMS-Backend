@@ -337,9 +337,24 @@ class LeaseSerializer(serializers.ModelSerializer):
         tenant_ids = validated_data.pop("tenant_ids", None)
         lease = super().update(instance, validated_data)
         if tenant_ids is not None:
-            instance.lease_tenants.all().delete()
+            # instance.lease_tenants.all().delete()
+            # for tenant in tenant_ids:
+            #     LeaseTenant.objects.create(lease=lease, tenant=tenant)
+            # Get current tenant IDs
+            current_tenant_ids = set(
+                instance.lease_tenants.values_list("tenant_id", flat=True)
+            )
+            new_tenant_ids = set(t.id for t in tenant_ids)
+
+            # Remove tenants no longer in the list
+            instance.lease_tenants.filter(
+                tenant_id__in=current_tenant_ids - new_tenant_ids
+            ).delete()
+
+            # Add new tenants
             for tenant in tenant_ids:
-                LeaseTenant.objects.create(lease=lease, tenant=tenant)
+                if tenant.id not in current_tenant_ids:
+                    LeaseTenant.objects.create(lease=lease, tenant=tenant)
         return lease
 
 
