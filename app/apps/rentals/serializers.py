@@ -4,7 +4,6 @@ from .models import (
     PaymentTerm,
     Owner,
     Manager,
-    Tenant,
     Property,
     PropertyOwnership,
     Unit,
@@ -15,24 +14,16 @@ from .models import (
     MaintenanceRequest,
     Expense,
     Document,
-    # Notification,
 )
+from apps.tenants.models import Tenant
 from apps.users.models import User  # adjust import as needed
 from django.contrib.contenttypes.models import ContentType
+from apps.tenants.serializers import TenantSerializer
+from apps.users.api.serializers import UserMinimalSerializer
 
 # ----------------------------------------------------------------------
 # Helper serializers for nested relations (minimal representations)
 # ----------------------------------------------------------------------
-
-
-class UserMinimalSerializer(serializers.ModelSerializer):
-    """Minimal user info for nested relations."""
-
-    phone = serializers.CharField(source="profile.phone", read_only=True)
-
-    class Meta:
-        model = User
-        fields = ["id", "pkid", "email", "first_name", "last_name", "phone"]
 
 
 class PaymentTermSerializer(serializers.ModelSerializer):
@@ -86,44 +77,6 @@ class ManagerSerializer(serializers.ModelSerializer):
             "commission_rate",
             "managed_properties",
             "is_active",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["created_at", "updated_at"]
-
-
-class TenantSerializer(serializers.ModelSerializer):
-    user = UserMinimalSerializer(read_only=True)
-    user_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), source="user", write_only=True
-    )
-
-    class Meta:
-        model = Tenant
-        fields = [
-            "id",
-            "pkid",
-            "user",
-            "user_id",
-            "id_number",
-            "id_document",
-            "emergency_contact_name",
-            "emergency_contact_phone",
-            "emergency_contact_relation",
-            "employer",
-            "job_title",
-            "monthly_income",
-            "guarantor_name",
-            "guarantor_phone",
-            "guarantor_email",
-            "guarantor_id_document",
-            "notes",
-            "language",  # added for bilingual support
-            "emergency_contact_name_fr",
-            "employer_fr",
-            "job_title_fr",
-            "notes_fr",
-            "guarantor_name_fr",
             "created_at",
             "updated_at",
         ]
