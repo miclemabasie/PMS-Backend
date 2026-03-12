@@ -5,8 +5,6 @@ from .views import (
     OwnerListCreateView,
     OwnerDetailView,
     # ManagerListCreateView, ManagerDetailView,
-    TenantListCreateView,
-    TenantDetailView,
     PropertyListCreateView,
     PropertyDetailView,
     UnitListCreateView,
@@ -44,9 +42,6 @@ urlpatterns = [
     # Owners
     path("owners/", OwnerListCreateView.as_view(), name="owner-list"),
     path("owners/<uuid:pk>/", OwnerDetailView.as_view(), name="owner-detail"),
-    # Tenants
-    path("tenants/", TenantListCreateView.as_view(), name="tenant-list"),
-    path("tenants/<uuid:pk>/", TenantDetailView.as_view(), name="tenant-detail"),
     # Properties
     path("properties/", PropertyListCreateView.as_view(), name="property-list"),
     path("properties/<uuid:pk>/", PropertyDetailView.as_view(), name="property-detail"),
