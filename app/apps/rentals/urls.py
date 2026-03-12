@@ -2,15 +2,6 @@ from django.urls import path
 from .views import (
     PaymentTermListCreateView,
     PaymentTermDetailView,
-    OwnerListCreateView,
-    OwnerDetailView,
-    # ManagerListCreateView, ManagerDetailView,
-    TenantListCreateView,
-    TenantDetailView,
-    PropertyListCreateView,
-    PropertyDetailView,
-    UnitListCreateView,
-    UnitDetailView,
     LeaseListCreateView,
     LeaseDetailView,
     LeaseTerminateView,
@@ -41,18 +32,6 @@ urlpatterns = [
         PaymentTermDetailView.as_view(),
         name="payment-term-detail",
     ),
-    # Owners
-    path("owners/", OwnerListCreateView.as_view(), name="owner-list"),
-    path("owners/<uuid:pk>/", OwnerDetailView.as_view(), name="owner-detail"),
-    # Tenants
-    path("tenants/", TenantListCreateView.as_view(), name="tenant-list"),
-    path("tenants/<uuid:pk>/", TenantDetailView.as_view(), name="tenant-detail"),
-    # Properties
-    path("properties/", PropertyListCreateView.as_view(), name="property-list"),
-    path("properties/<uuid:pk>/", PropertyDetailView.as_view(), name="property-detail"),
-    # Units
-    path("units/", UnitListCreateView.as_view(), name="unit-list"),
-    path("units/<uuid:pk>/", UnitDetailView.as_view(), name="unit-detail"),
     # Leases
     path("leases/", LeaseListCreateView.as_view(), name="lease-list"),
     path("leases/<uuid:pk>/", LeaseDetailView.as_view(), name="lease-detail"),

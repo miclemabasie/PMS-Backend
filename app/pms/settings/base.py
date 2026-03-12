@@ -55,6 +55,9 @@ LOCAL_APPS = [
     "apps.core.apps.CoreConfig",
     "apps.notifications.apps.NotificationsConfig",
     "apps.rentals.apps.RentalsConfig",
+    "apps.tenants.apps.TenantsConfig",
+    "apps.properties.apps.PropertiesConfig",
+    "apps.payments.apps.PaymentsConfig",
 ]
 
 THIRD_PARTY_APPS = [

@@ -9,6 +9,16 @@ from apps.users.models import Profile, Role
 User = get_user_model()
 
 
+class UserMinimalSerializer(serializers.ModelSerializer):
+    """Minimal user info for nested relations."""
+
+    phone = serializers.CharField(source="profile.phone", read_only=True)
+
+    class Meta:
+        model = User
+        fields = ["id", "pkid", "email", "first_name", "last_name", "phone"]
+
+
 class UserCreateSerializer(DjoserUserCreateSerializer):
     class Meta(DjoserUserCreateSerializer.Meta):
         model = User
