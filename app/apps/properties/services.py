@@ -28,6 +28,12 @@ class OwnerService(BaseService[Owner]):
     def __init__(self):
         super().__init__(OwnerRepository())
 
+    def create(self, **data):
+        owner = self.repository.create(**data)
+        owner.user.role = "landlord"
+        owner.user.save()
+        return owner
+
     def get_or_create_for_user(self, user):
         """Ensure an owner profile exists for the user."""
         try:

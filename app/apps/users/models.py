@@ -20,7 +20,9 @@ from .managers import CustomUserManager
 
 class Role(models.TextChoices):
     ADMIN = "admin", _("Admin")
-    MODERATOR = "moderator", _("Moderator")
+    Owner = "landlord", _("Landlord")
+    AGENT = "agent", _("Agent")
+    Tenant = "tenant", _("Tenant")
     USER = "user", _("User")
 
 
