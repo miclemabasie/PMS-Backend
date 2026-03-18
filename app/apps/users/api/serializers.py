@@ -46,6 +46,10 @@ class UserCreateSerializer(DjoserUserCreateSerializer):
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     is_admin = serializers.SerializerMethodField()
+    profile_picture = serializers.ImageField(source="profile.profile_photo")
+
+    # add the profile data with readonly attributes to this serializer
+    # profile = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = User
@@ -64,6 +68,7 @@ class UserSerializer(serializers.ModelSerializer):
             "is_admin",
             "date_joined",
             "last_login",
+            "profile_picture",
         ]
         read_only_fields = ("id", "email", "date_joined", "last_login")
 
@@ -72,6 +77,9 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_is_admin(self, obj):
         return obj.role == Role.ADMIN
+
+    # def get_profile(self, obj):
+    #     return ProfileSerializer(obj.profile).data
 
 
 class ProfileSerializer(serializers.ModelSerializer):
