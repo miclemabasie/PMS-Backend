@@ -55,6 +55,13 @@ class ManagerService(BaseService[Manager]):
         except Manager.DoesNotExist:
             return self.create(user=user)
 
+    # New method
+    def get_all_for_user(self, user):
+        """
+        Return all managers accessible by the given user.
+        """
+        return self.repository.get_queryset_for_user(user)
+
 
 # ----------------------------------------------------------------------
 # Property Service
@@ -66,20 +73,15 @@ class PropertyService(BaseService[Property]):
         self.manager_repo = ManagerRepository()
         self.ownership_repo = PropertyOwnershipRepository()
 
-    def create_property(
-        self, data: dict, owner: Owner, manager_ids: List[str] = None
-    ) -> Property:
+    def create_property(self, data: dict, owner: Owner) -> Property:
+        # Extract managers from data before creating the property
+        managers = data.pop("managers", [])  # list of Manager instances
         with transaction.atomic():
-            # Remove many-to-many fields from data
-            manager_ids = manager_ids or []
-            print("this is the property data", data)
             property = self.repository.create(**data)
-            # Create ownership record
             self.ownership_repo.create(
                 property=property, owner=owner, percentage=100, is_primary=True
             )
-            if manager_ids:
-                managers = self.manager_repo.filter(id__in=manager_ids)
+            if managers:
                 property.managers.set(managers)
             return property
 

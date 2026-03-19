@@ -54,4 +54,4 @@ class CanManageProperty(BasePermission):
         user = request.user
         if user.is_superuser:
             return True
-        return user.role in ["superadmin", "landlord", "propertymanager"]
+        return user.role in ["superadmin", "landlord", "manager"]

@@ -119,7 +119,7 @@ class PropertyListCreateView(APIView):
             property = self.service.create_property(
                 data=serializer.validated_data,
                 owner=owner,
-                manager_ids=request.data.get("managers", []),
+                # manager_ids=request.data.get("manager_ids", []),
             )
             output = PropertySerializer(property, context={"request": request})
             return Response(output.data, status=201)
@@ -258,3 +258,52 @@ class UnitDetailView(APIView):
             return Response({"detail": "Cannot delete occupied unit"}, status=400)
         self.service.delete(pk)
         return Response(status=204)
+
+
+class ManagerListCreateView(APIView):
+    permission_classes = [IsAuthenticated, CanManageProperty]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = ManagerService()
+        self.paginator = UnitResultsSetPagination()
+
+    def get(self, request):
+        managers_qs = self.service.get_all_for_user(request.user)
+        page = self.paginator.paginate_queryset(managers_qs, request)
+        serializer = ManagerSerializer(page, many=True, context={"request": request})
+        return self.paginator.get_paginated_response(serializer.data)
+
+    def post(self, request):
+        serializer = ManagerSerializer(data=request.data)
+        if serializer.is_valid():
+            manager = self.service.create(**serializer.validated_data)
+            output = ManagerSerializer(manager)
+            return Response(output.data, status=201)
+        return Response(serializer.errors, status=400)
+
+
+class ManagerDetailView(APIView):
+    permission_classes = [IsAuthenticated, CanManageProperty]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = ManagerService()
+
+    def get(self, request, pk):
+        manager = self.service.get_by_id(pk)
+        if not manager:
+            return Response({"detail": "Not found"}, status=404)
+        serializer = ManagerSerializer(manager)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        manager = self.service.get_by_id(pk)
+        if not manager:
+            return Response({"detail": "Not found"}, status=404)
+        serializer = ManagerSerializer(manager, data=request.data)
+        if serializer.is_valid():
+            updated = self.service.update(pk, **serializer.validated_data)
+            output = ManagerSerializer(updated)
+            return Response(output.data)
+        return Response(serializer.errors, status=400)

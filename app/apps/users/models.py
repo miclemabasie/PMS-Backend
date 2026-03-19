@@ -23,6 +23,7 @@ class Role(models.TextChoices):
     Owner = "landlord", _("Landlord")
     AGENT = "agent", _("Agent")
     Tenant = "tenant", _("Tenant")
+    Manager = "manager", _("Manager")
     USER = "user", _("User")
 
 

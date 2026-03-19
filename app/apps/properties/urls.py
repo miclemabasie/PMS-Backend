@@ -6,6 +6,8 @@ from .views import (
     PropertyDetailView,
     UnitListCreateView,
     UnitDetailView,
+    ManagerListCreateView,
+    ManagerDetailView,
 )
 
 app_name = "properties"
@@ -20,4 +22,6 @@ urlpatterns = [
     # Units
     path("units/", UnitListCreateView.as_view(), name="unit-list"),
     path("units/<uuid:pk>/", UnitDetailView.as_view(), name="unit-detail"),
+    path("managers/", ManagerListCreateView.as_view(), name="manager-list"),
+    path("managers/<uuid:pk>/", ManagerDetailView.as_view(), name="manager-detail"),
 ]
