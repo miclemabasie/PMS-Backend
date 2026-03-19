@@ -24,7 +24,7 @@ from .services import (
     ManagerService,
     UnitService,
 )
-from apps.core.utils import StandardResultsSetPagination
+from .utils import StandardResultsSetPagination, UnitResultsSetPagination
 
 
 # ----------------------------------------------------------------------
@@ -197,10 +197,12 @@ class UnitListCreateView(APIView):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.service = UnitService()
-        self.paginator = StandardResultsSetPagination()
+        self.paginator = UnitResultsSetPagination()
 
     def get(self, request):
+
         property_id = request.query_params.get("property")
+        print("this is the property id", property_id)
         if property_id:
             units = self.service.get_units_for_property(property_id)
         else:

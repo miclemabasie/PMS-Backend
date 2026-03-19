@@ -5,6 +5,6 @@ app_name = "tenants"
 
 urlpatterns = [
     # Tenants
-    path("tenants/", TenantListCreateView.as_view(), name="tenant-list"),
-    path("tenants/<uuid:pk>/", TenantDetailView.as_view(), name="tenant-detail"),
+    path("", TenantListCreateView.as_view(), name="tenant-list"),
+    path("<uuid:pk>/", TenantDetailView.as_view(), name="tenant-detail"),
 ]

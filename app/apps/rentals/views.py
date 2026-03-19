@@ -99,16 +99,19 @@ class LeaseListCreateView(APIView):
         self.paginator = StandardResultsSetPagination()
 
     def get(self, request):
-        # Filter by unit or tenant
+        # Start with user‑specific queryset
+        leases_qs = self.service.get_all_for_user(request.user)
+
+        # Apply optional query parameters (unit or tenant)
         unit_id = request.query_params.get("unit")
         tenant_id = request.query_params.get("tenant")
         if unit_id:
-            leases = self.service.repository.filter(unit_id=unit_id)
+            leases_qs = leases_qs.filter(unit_id=unit_id)
         elif tenant_id:
-            leases = self.service.repository.filter(lease_tenants__tenant_id=tenant_id)
-        else:
-            leases = self.service.get_all()
-        page = self.paginator.paginate_queryset(leases, request)
+            leases_qs = leases_qs.filter(lease_tenants__tenant_id=tenant_id)
+
+        # Paginate
+        page = self.paginator.paginate_queryset(leases_qs, request)
         serializer = LeaseSerializer(page, many=True, context={"request": request})
         return self.paginator.get_paginated_response(serializer.data)
 

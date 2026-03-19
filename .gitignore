@@ -212,3 +212,4 @@ marimo/_lsp/
 __marimo__/
 code_generation.py
 project_code.md
+code_generation_models.py

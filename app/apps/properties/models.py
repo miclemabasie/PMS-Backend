@@ -96,6 +96,7 @@ class Property(TimeStampedUUIDModel):
     description = models.TextField(_("Description"), blank=True)
     address_line1 = models.CharField(_("Address line 1"), max_length=255)
     address_line2 = models.CharField(_("Address line 2"), max_length=255, blank=True)
+
     city = models.CharField(_("City"), max_length=100, db_index=True)
     state = models.CharField(_("State/Region"), max_length=100, blank=True)
     country = CountryField(_("Country"), default="CM")
@@ -112,6 +113,18 @@ class Property(TimeStampedUUIDModel):
         through="PropertyOwnership",
         related_name="properties",
         verbose_name=_("Owners"),
+    )
+    status = models.CharField(
+        _("Status"),
+        max_length=20,
+        choices=[("MAINTENANCE", "Maintenance"), ("ACTIVE", "Active")],
+        default="active",
+    )
+    starting_amount = models.DecimalField(
+        _("Starting amount"), max_digits=10, decimal_places=2, default=0
+    )
+    top_amount = models.DecimalField(
+        _("Top amount"), max_digits=10, decimal_places=2, default=0
     )
     is_active = models.BooleanField(_("Active"), default=True)
 

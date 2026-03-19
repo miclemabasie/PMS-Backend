@@ -127,6 +127,15 @@ class LeaseService(BaseService[Lease]):
             lease_tenants__tenant_id=tenant_id, status="active"
         )
 
+    def get_all_leases_for_property(self, property_id):
+        return self.repository.filter(unit__property_id=property_id)
+
+    def get_all_for_user(self, user):
+        """
+        Return all leases accessible by the given user.
+        """
+        return self.repository.get_queryset_for_user(user)
+
 
 # ----------------------------------------------------------------------
 # Payment Service

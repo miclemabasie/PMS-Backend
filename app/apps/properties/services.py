@@ -72,6 +72,7 @@ class PropertyService(BaseService[Property]):
         with transaction.atomic():
             # Remove many-to-many fields from data
             manager_ids = manager_ids or []
+            print("this is the property data", data)
             property = self.repository.create(**data)
             # Create ownership record
             self.ownership_repo.create(
@@ -100,7 +101,7 @@ class PropertyService(BaseService[Property]):
         if user.is_superuser:
             return self.get_all()
         elif hasattr(user, "owner_profile"):
-            return self.repository.find_by_owner(user.owner_profile.id)
+            return self.repository.find_by_owner(user.owner_profile.pkid)
         elif hasattr(user, "manager_profile"):
             return self.repository.find_by_manager(user.manager_profile.id)
         else:

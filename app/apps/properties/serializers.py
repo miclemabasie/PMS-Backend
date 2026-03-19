@@ -5,6 +5,7 @@ from apps.users.api.serializers import UserMinimalSerializer
 from apps.users.models import User
 from apps.payments.serializers import PaymentSerializer, PaymentTermSerializer
 from apps.payments.models import PaymentTerm
+from .utils import calculatate_occupancy_rate
 
 
 class OwnerSerializer(serializers.ModelSerializer):
@@ -86,6 +87,10 @@ class PropertySerializer(serializers.ModelSerializer):
         many=True, read_only=True
     )  # or use UnitSerializer with depth
 
+    occupancy_rate = serializers.SerializerMethodField()
+    lower_bound = serializers.SerializerMethodField(read_only=True)
+    upper_bound = serializers.SerializerMethodField()
+
     class Meta:
         model = Property
         fields = [
@@ -112,6 +117,12 @@ class PropertySerializer(serializers.ModelSerializer):
             "managers",
             "manager_ids",
             "units",
+            "status",
+            "starting_amount",
+            "top_amount",
+            "occupancy_rate",
+            "lower_bound",
+            "upper_bound",
             "is_active",
             "created_at",
             "updated_at",
@@ -131,6 +142,20 @@ class PropertySerializer(serializers.ModelSerializer):
         if managers is not None:
             property.managers.set(managers)
         return property
+
+    def get_occupancy_rate(self, obj):
+        # return calculatate_occupancy_rate(obj.id)
+        return 70
+
+    def get_lower_bound(self, obj):
+        # convert figure to represent 1k fo 1000
+        price = obj.starting_amount / 1000
+        return f"{int(price)}k"
+
+    def get_upper_bound(self, obj):
+        price = obj.top_amount / 1000
+        # remove the .00 from the price
+        return f"{int(price)}k"
 
 
 # ----------------------------------------------------------------------
