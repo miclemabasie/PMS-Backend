@@ -210,3 +210,76 @@ class UnitSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
+
+
+class PropertyManagerAssignmentSerializer(serializers.Serializer):
+    """
+    Serializer for adding/removing managers to a property.
+    """
+
+    manager_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=True,
+        help_text="List of manager UUIDs to assign",
+    )
+
+    def validate_manager_ids(self, value):
+        """Validate that all manager IDs exist."""
+        existing_managers = Manager.objects.filter(pkid__in=value)
+        if len(existing_managers) != len(value):
+            missing = set(value) - set(existing_managers.values_list("pkid", flat=True))
+            raise serializers.ValidationError(
+                f"Manager(s) with IDs {missing} not found"
+            )
+        return value
+
+
+class PropertyManagerListSerializer(serializers.ModelSerializer):
+    """
+    Serializer for listing managers assigned to a property.
+    """
+
+    user = UserMinimalSerializer(read_only=True)
+    commission_rate = serializers.DecimalField(max_digits=5, decimal_places=2)
+
+    class Meta:
+        model = Manager
+        fields = [
+            "id",
+            "pkid",
+            "user",
+            "commission_rate",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+
+class PropertyManagerAddSerializer(serializers.Serializer):
+    """
+    Serializer for adding a single manager to a property.
+    """
+
+    manager_id = serializers.UUIDField(
+        required=True, help_text="UUID of the manager to add"
+    )
+
+    def validate_manager_id(self, value):
+        """Validate that the manager exists."""
+        try:
+            manager = Manager.objects.get(pkid=value)
+            return manager
+        except Manager.DoesNotExist:
+            raise serializers.ValidationError(f"Manager with ID {value} not found")
+
+
+class PropertyManagerRemoveSerializer(serializers.Serializer):
+    """
+    Serializer for removing a single manager from a property.
+    """
+
+    manager_id = serializers.UUIDField(
+        required=True, help_text="UUID of the manager to remove"
+    )
