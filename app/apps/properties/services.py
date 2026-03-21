@@ -109,6 +109,55 @@ class PropertyService(BaseService[Property]):
         else:
             return []
 
+    def add_managers(self, property_id: str, manager_ids: List[str]) -> Property:
+        """
+        Add one or more managers to a property.
+        """
+        with transaction.atomic():
+            property = self.get_by_id(property_id)
+            if not property:
+                raise ValueError(f"Property with ID {property_id} not found")
+
+            managers = Manager.objects.filter(pkid__in=manager_ids)
+            property.managers.add(*managers)
+            return property
+
+    def remove_managers(self, property_id: str, manager_ids: List[str]) -> Property:
+        """
+        Remove one or more managers from a property.
+        """
+        with transaction.atomic():
+            property = self.get_by_id(property_id)
+            if not property:
+                raise ValueError(f"Property with ID {property_id} not found")
+
+            managers = Manager.objects.filter(pkid__in=manager_ids)
+            property.managers.remove(*managers)
+            return property
+
+    def get_property_managers(self, property_id: str):
+        """
+        Get all managers assigned to a property.
+        """
+        property = self.get_by_id(property_id)
+        if not property:
+            raise ValueError(f"Property with ID {property_id} not found")
+
+        return property.managers.all()
+
+    def replace_managers(self, property_id: str, manager_ids: List[str]) -> Property:
+        """
+        Replace all managers of a property with a new set.
+        """
+        with transaction.atomic():
+            property = self.get_by_id(property_id)
+            if not property:
+                raise ValueError(f"Property with ID {property_id} not found")
+
+            managers = Manager.objects.filter(pkid__in=manager_ids)
+            property.managers.set(managers)
+            return property
+
 
 # ----------------------------------------------------------------------
 # Unit Service

@@ -100,6 +100,7 @@ class Property(TimeStampedUUIDModel):
     city = models.CharField(_("City"), max_length=100, db_index=True)
     state = models.CharField(_("State/Region"), max_length=100, blank=True)
     country = CountryField(_("Country"), default="CM")
+    images = models.JSONField(_("Image URLs"), default=list, blank=True)
     postal_code = models.CharField(_("Postal code"), max_length=20, blank=True)
     # Cameroon specifics
     has_generator = models.BooleanField(_("Has generator"), default=False)
@@ -107,7 +108,6 @@ class Property(TimeStampedUUIDModel):
     amenities = models.JSONField(
         _("Amenities"), default=list, blank=True
     )  # list of strings
-    images = models.JSONField(_("Image URLs"), default=list, blank=True)
     owners = models.ManyToManyField(
         Owner,
         through="PropertyOwnership",
@@ -152,6 +152,13 @@ class Property(TimeStampedUUIDModel):
 
     def __str__(self):
         return self.name
+
+
+class PropertyImage(models.Model):
+    property = models.ForeignKey(
+        "Property", on_delete=models.CASCADE, related_name="property_images"
+    )
+    image = models.ImageField(upload_to="properties/")
 
 
 class PropertyOwnership(TimeStampedUUIDModel):
@@ -309,3 +316,10 @@ class Unit(TimeStampedUUIDModel):
 
     def __str__(self):
         return f"{self.property.name} - {self.unit_number}"
+
+
+class UnitImage(models.Model):
+    unit = models.ForeignKey(
+        "Unit", on_delete=models.CASCADE, related_name="unit_images"
+    )
+    image = models.ImageField(upload_to="properties/units/")

@@ -25,6 +25,12 @@ from .services import (
     UnitService,
 )
 from .utils import StandardResultsSetPagination, UnitResultsSetPagination
+from .serializers import (
+    PropertyManagerAssignmentSerializer,
+    PropertyManagerListSerializer,
+    PropertyManagerAddSerializer,
+    PropertyManagerRemoveSerializer,
+)
 
 
 # ----------------------------------------------------------------------
@@ -307,3 +313,242 @@ class ManagerDetailView(APIView):
             output = ManagerSerializer(updated)
             return Response(output.data)
         return Response(serializer.errors, status=400)
+
+
+# ----------------------------------------------------------------------
+# Property Manager Assignment Views
+# ----------------------------------------------------------------------
+
+
+class PropertyManagerListView(APIView):
+    """
+    List all managers assigned to a specific property.
+    """
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = PropertyService()
+
+    def get(self, request, pk):
+        # Check if property exists
+        property = self.service.get_by_id(pk)
+        if not property:
+            return Response({"detail": "Property not found"}, status=404)
+
+        # Check permissions
+        self.check_object_permissions(request, property)
+
+        # Get managers
+        managers = self.service.get_property_managers(pk)
+        serializer = PropertyManagerListSerializer(managers, many=True)
+        return Response(serializer.data)
+
+
+class PropertyManagerAddView(APIView):
+    """
+    Add one or more managers to a property.
+    """
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = PropertyService()
+
+    def post(self, request, pk):
+        # Check if property exists
+        property = self.service.get_by_id(pk)
+        if not property:
+            return Response({"detail": "Property not found"}, status=404)
+
+        # Check permissions
+        self.check_object_permissions(request, property)
+
+        # Validate request data
+        serializer = PropertyManagerAssignmentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        manager_ids = serializer.validated_data["manager_ids"]
+
+        try:
+            # Add managers
+            updated_property = self.service.add_managers(pk, manager_ids)
+
+            # Return updated list of managers
+            managers = updated_property.managers.all()
+            response_serializer = PropertyManagerListSerializer(managers, many=True)
+            return Response(
+                {
+                    "message": f"Successfully added {len(manager_ids)} manager(s)",
+                    "managers": response_serializer.data,
+                },
+                status=200,
+            )
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+
+
+class PropertyManagerRemoveView(APIView):
+    """
+    Remove one or more managers from a property.
+    """
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = PropertyService()
+
+    def post(self, request, pk):
+        # Check if property exists
+        property = self.service.get_by_id(pk)
+        if not property:
+            return Response({"detail": "Property not found"}, status=404)
+
+        # Check permissions
+        self.check_object_permissions(request, property)
+
+        # Validate request data
+        serializer = PropertyManagerAssignmentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        manager_ids = serializer.validated_data["manager_ids"]
+
+        try:
+            # Remove managers
+            updated_property = self.service.remove_managers(pk, manager_ids)
+
+            # Return updated list of managers
+            managers = updated_property.managers.all()
+            response_serializer = PropertyManagerListSerializer(managers, many=True)
+            return Response(
+                {
+                    "message": f"Successfully removed {len(manager_ids)} manager(s)",
+                    "managers": response_serializer.data,
+                },
+                status=200,
+            )
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+
+
+class PropertyManagerReplaceView(APIView):
+    """
+    Replace all managers of a property with a new set.
+    """
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = PropertyService()
+
+    def put(self, request, pk):
+        # Check if property exists
+        property = self.service.get_by_id(pk)
+        if not property:
+            return Response({"detail": "Property not found"}, status=404)
+
+        # Check permissions
+        self.check_object_permissions(request, property)
+
+        # Validate request data
+        serializer = PropertyManagerAssignmentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        manager_ids = serializer.validated_data["manager_ids"]
+
+        try:
+            # Replace all managers
+            updated_property = self.service.replace_managers(pk, manager_ids)
+
+            # Return updated list of managers
+            managers = updated_property.managers.all()
+            response_serializer = PropertyManagerListSerializer(managers, many=True)
+            return Response(
+                {
+                    "message": f"Successfully replaced managers with {len(manager_ids)} new manager(s)",
+                    "managers": response_serializer.data,
+                },
+                status=200,
+            )
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+
+
+# Optional: Single manager operations (add/remove one at a time)
+class PropertyManagerAddSingleView(APIView):
+    """
+    Add a single manager to a property.
+    """
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = PropertyService()
+
+    def post(self, request, pk):
+        property = self.service.get_by_id(pk)
+        if not property:
+            return Response({"detail": "Property not found"}, status=404)
+
+        self.check_object_permissions(request, property)
+
+        serializer = PropertyManagerAddSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        manager = serializer.validated_data["manager_id"]
+
+        try:
+            updated_property = self.service.add_managers(pk, [str(manager.pkid)])
+            managers = updated_property.managers.all()
+            response_serializer = PropertyManagerListSerializer(managers, many=True)
+            return Response(
+                {
+                    "message": f"Successfully added manager {manager.pkid}",
+                    "managers": response_serializer.data,
+                },
+                status=200,
+            )
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+
+
+class PropertyManagerRemoveSingleView(APIView):
+    """
+    Remove a single manager from a property.
+    """
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = PropertyService()
+
+    def delete(self, request, pk, manager_pk):
+        property = self.service.get_by_id(pk)
+        if not property:
+            return Response({"detail": "Property not found"}, status=404)
+
+        self.check_object_permissions(request, property)
+
+        try:
+            updated_property = self.service.remove_managers(pk, [manager_pk])
+            managers = updated_property.managers.all()
+            response_serializer = PropertyManagerListSerializer(managers, many=True)
+            return Response(
+                {
+                    "message": f"Successfully removed manager {manager_pk}",
+                    "managers": response_serializer.data,
+                },
+                status=200,
+            )
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
