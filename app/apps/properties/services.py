@@ -8,6 +8,8 @@ from .models import (
     Manager,
     PropertyOwnership,
     Unit,
+    PropertyImage,
+    UnitImage,
 )
 from .repositories import (
     PropertyRepository,
@@ -74,29 +76,52 @@ class PropertyService(BaseService[Property]):
         self.ownership_repo = PropertyOwnershipRepository()
 
     def create_property(self, data: dict, owner: Owner) -> Property:
-        # Extract managers from data before creating the property
-        managers = data.pop("managers", [])  # list of Manager instances
+        # Pop non-model fields before creating the property
+        images = data.pop("images", [])
+        managers = data.pop("managers", [])
+
         with transaction.atomic():
-            property = self.repository.create(**data)
+            property = self.repository.create(
+                **data
+            )  # now data contains only model fields
+
+            # Create ownership record
             self.ownership_repo.create(
                 property=property, owner=owner, percentage=100, is_primary=True
             )
+
+            # Assign managers
             if managers:
                 property.managers.set(managers)
+
+            # Create images
+            for image in images:
+                PropertyImage.objects.create(property=property, image=image)
+
             return property
 
-    def update_property(
-        self, id: str, data: dict, manager_ids: List[str] = None
-    ) -> Optional[Property]:
+    def update_property(self, id: str, data: dict) -> Optional[Property]:
         with transaction.atomic():
             property = self.get_by_id(id)
             if not property:
                 return None
+
+            images = data.pop("images", None)
+            managers = data.pop("managers", None)
+
             # Update scalar fields
             property = self.repository.update(property, **data)
-            if manager_ids is not None:
-                managers = self.manager_repo.filter(id__in=manager_ids)
+
+            # Update managers
+            if managers is not None:
                 property.managers.set(managers)
+
+            # Update images
+            if images is not None:
+                property.property_images.all().delete()
+                for image in images:
+                    PropertyImage.objects.create(property=property, image=image)
+
             return property
 
     def get_properties_for_user(self, user):
@@ -158,6 +183,30 @@ class PropertyService(BaseService[Property]):
             property.managers.set(managers)
             return property
 
+    # ... existing methods ...
+
+    def add_property_image(self, property_id: str, image_file) -> PropertyImage:
+        """Add an image to a property."""
+        property = self.get_by_id(property_id)
+        if not property:
+            raise ValueError(f"Property with ID {property_id} not found")
+        return PropertyImage.objects.create(property=property, image=image_file)
+
+    def remove_property_image(self, image_id: int) -> None:
+        """Remove a property image by its ID."""
+        try:
+            image = PropertyImage.objects.get(id=image_id)
+            image.delete()
+        except PropertyImage.DoesNotExist:
+            raise ValueError(f"Image with ID {image_id} not found")
+
+    def get_property_images(self, property_id: str):
+        """Get all images for a property."""
+        property = self.get_by_id(property_id)
+        if not property:
+            raise ValueError(f"Property with ID {property_id} not found")
+        return property.property_images.all()
+
 
 # ----------------------------------------------------------------------
 # Unit Service
@@ -166,6 +215,37 @@ class UnitService(BaseService[Unit]):
     def __init__(self):
         super().__init__(UnitRepository())
         # self.lease_repo = LeaseRepository()
+
+    def create_unit(self, data: dict) -> Unit:
+        """Create a unit with images."""
+        images = data.pop("images", [])
+        unit = self.repository.create(**data)
+
+        # Create images
+        for image in images:
+            UnitImage.objects.create(unit=unit, image=image)
+
+        return unit
+
+    def update_unit(self, id: str, data: dict) -> Optional[Unit]:
+        """Update a unit with images."""
+        with transaction.atomic():
+            unit = self.get_by_id(id)
+            if not unit:
+                return None
+
+            images = data.pop("images", None)
+
+            # Update scalar fields
+            unit = self.repository.update(unit, **data)
+
+            # Update images if provided
+            if images is not None:
+                unit.unit_images.all().delete()
+                for image in images:
+                    UnitImage.objects.create(unit=unit, image=image)
+
+            return unit
 
     def get_units_for_property(self, property_id):
         return self.repository.find_by_property(property_id)
@@ -183,6 +263,28 @@ class UnitService(BaseService[Unit]):
             unit.save()
             return unit
         return None
+
+    def add_unit_image(self, unit_id: str, image_file) -> UnitImage:
+        """Add an image to a unit."""
+        unit = self.get_by_id(unit_id)
+        if not unit:
+            raise ValueError(f"Unit with ID {unit_id} not found")
+        return UnitImage.objects.create(unit=unit, image=image_file)
+
+    def remove_unit_image(self, image_id: int) -> None:
+        """Remove a unit image by its ID."""
+        try:
+            image = UnitImage.objects.get(id=image_id)
+            image.delete()
+        except UnitImage.DoesNotExist:
+            raise ValueError(f"Image with ID {image_id} not found")
+
+    def get_unit_images(self, unit_id: str):
+        """Get all images for a unit."""
+        unit = self.get_by_id(unit_id)
+        if not unit:
+            raise ValueError(f"Unit with ID {unit_id} not found")
+        return unit.unit_images.all()
 
 
 class PropertyOwnershipService(BaseService[PropertyOwnership]):

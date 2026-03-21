@@ -33,10 +33,8 @@ class TenantListCreateView(APIView):
         property_id = request.query_params.get("property")
         if property_id:
             # Get all tenants with leases in that property
-            print("there was a property id", property_id)
             tenants = self.service.get_tenants_for_property(property_id)
         else:
-            print("there was no property id")
             tenants = self.service.get_all()
         page = self.paginator.paginate_queryset(tenants, request)
         serializer = TenantSerializer(page, many=True)

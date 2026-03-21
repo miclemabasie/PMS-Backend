@@ -18,7 +18,6 @@ def calculate_owner_occupancy_rate(property_id):
     """
     Calculate the occupancy rate of a specific owner taking into consideration his properties and all the units in every property
     """
-    print("this is the id of the property", property_id)
     owner_id = PropertyOwnership.objects.get(property__id=property_id).owner_id
     properties = Owner.objects.get(pkid=owner_id).properties.all()
     occupied_units = 0

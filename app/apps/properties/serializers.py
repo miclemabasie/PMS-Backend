@@ -1,11 +1,33 @@
 from rest_framework import serializers
 from django.shortcuts import render
-from .models import Property, Owner, PropertyOwnership, Manager, Unit
+from .models import (
+    Property,
+    Owner,
+    PropertyImage,
+    UnitImage,
+    PropertyOwnership,
+    Manager,
+    Unit,
+)
 from apps.users.api.serializers import UserMinimalSerializer
 from apps.users.models import User
 from apps.payments.serializers import PaymentSerializer, PaymentTermSerializer
 from apps.payments.models import PaymentTerm
 from .utils import calculatate_occupancy_rate
+
+
+class PropertyImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PropertyImage
+        fields = ["id", "image", "property", "alt_text", "is_primary"]
+        read_only_fields = ["id", "property"]
+
+
+class UnitImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UnitImage
+        fields = ["id", "image", "unit", "alt_text", "is_primary"]
+        read_only_fields = ["id", "unit"]
 
 
 class OwnerSerializer(serializers.ModelSerializer):
@@ -90,6 +112,13 @@ class PropertySerializer(serializers.ModelSerializer):
     occupancy_rate = serializers.SerializerMethodField()
     lower_bound = serializers.SerializerMethodField(read_only=True)
     upper_bound = serializers.SerializerMethodField()
+    property_images = PropertyImageSerializer(many=True, read_only=True)
+    images = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False,
+        help_text="List of images to upload with the property",
+    )
 
     class Meta:
         model = Property
@@ -109,6 +138,7 @@ class PropertySerializer(serializers.ModelSerializer):
             "city",
             "state",
             "country",
+            "property_images",
             "postal_code",
             "has_generator",
             "has_water_tank",
@@ -128,20 +158,6 @@ class PropertySerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
-
-    def create(self, validated_data):
-        managers = validated_data.pop("managers", [])
-        property = super().create(validated_data)
-        if managers:
-            property.managers.set(managers)
-        return property
-
-    def update(self, instance, validated_data):
-        managers = validated_data.pop("managers", None)
-        property = super().update(instance, validated_data)
-        if managers is not None:
-            property.managers.set(managers)
-        return property
 
     def get_occupancy_rate(self, obj):
         # return calculatate_occupancy_rate(obj.id)
@@ -179,6 +195,14 @@ class UnitSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
 
+    unit_images = UnitImageSerializer(many=True, read_only=True)
+    images = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False,
+        help_text="List of images to upload with the unit",
+    )
+
     class Meta:
         model = Unit
         fields = [
@@ -200,6 +224,7 @@ class UnitSerializer(serializers.ModelSerializer):
             "status",
             "amenities",
             "amenities_fr",
+            "unit_images",
             "images",
             "water_meter_number",
             "electricity_meter_number",

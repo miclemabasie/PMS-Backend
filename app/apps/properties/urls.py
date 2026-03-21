@@ -14,6 +14,12 @@ from .views import (
     PropertyManagerReplaceView,
     PropertyManagerAddSingleView,
     PropertyManagerRemoveSingleView,
+    PropertyImageListView,
+    PropertyImageUploadView,
+    PropertyImageDeleteView,
+    UnitImageListView,
+    UnitImageUploadView,
+    UnitImageDeleteView,
 )
 
 app_name = "properties"
@@ -61,5 +67,35 @@ urlpatterns = [
         "<uuid:pk>/managers/<uuid:manager_pk>/remove-single/",
         PropertyManagerRemoveSingleView.as_view(),
         name="property-manager-remove-single",
+    ),
+    # Property images
+    path(
+        "<uuid:pk>/images/",
+        PropertyImageListView.as_view(),
+        name="property-images-list",
+    ),
+    path(
+        "<uuid:pk>/images/upload/",
+        PropertyImageUploadView.as_view(),
+        name="property-images-upload",
+    ),
+    path(
+        "<uuid:pk>/images/<int:image_id>/delete/",
+        PropertyImageDeleteView.as_view(),
+        name="property-images-delete",
+    ),
+    # Unit images
+    path(
+        "units/<uuid:pk>/images/", UnitImageListView.as_view(), name="unit-images-list"
+    ),
+    path(
+        "units/<uuid:pk>/images/upload/",
+        UnitImageUploadView.as_view(),
+        name="unit-images-upload",
+    ),
+    path(
+        "units/<uuid:pk>/images/<int:image_id>/delete/",
+        UnitImageDeleteView.as_view(),
+        name="unit-images-delete",
     ),
 ]

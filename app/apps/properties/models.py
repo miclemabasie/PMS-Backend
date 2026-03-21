@@ -158,6 +158,8 @@ class PropertyImage(models.Model):
     property = models.ForeignKey(
         "Property", on_delete=models.CASCADE, related_name="property_images"
     )
+    alt_text = models.CharField(_("Alt text"), max_length=255, blank=True)
+    is_primary = models.BooleanField(_("Primary image"), default=False)
     image = models.ImageField(upload_to="properties/")
 
 
@@ -322,4 +324,6 @@ class UnitImage(models.Model):
     unit = models.ForeignKey(
         "Unit", on_delete=models.CASCADE, related_name="unit_images"
     )
+    alt_text = models.CharField(_("Alt text"), max_length=255, blank=True)
+    is_primary = models.BooleanField(_("Primary image"), default=False)
     image = models.ImageField(upload_to="properties/units/")

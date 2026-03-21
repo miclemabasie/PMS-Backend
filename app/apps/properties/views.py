@@ -9,6 +9,7 @@ from .permissions import (
     CanManageProperty,
     IsTenantOrReadOnly,
 )
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from .serializers import (
     PropertySerializer,
@@ -16,6 +17,8 @@ from .serializers import (
     PropertyOwnershipSerializer,
     ManagerSerializer,
     UnitSerializer,
+    PropertyImageSerializer,
+    UnitImageSerializer,
 )
 from .services import (
     PropertyService,
@@ -104,6 +107,7 @@ class OwnerDetailView(APIView):
 # ----------------------------------------------------------------------
 class PropertyListCreateView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -134,6 +138,7 @@ class PropertyListCreateView(APIView):
 
 class PropertyDetailView(APIView):
     permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+    parser_classes = [MultiPartParser, FormParser]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -197,8 +202,11 @@ class PropertyDetailView(APIView):
 # ----------------------------------------------------------------------
 # Unit Views
 # ----------------------------------------------------------------------
+
+
 class UnitListCreateView(APIView):
     permission_classes = [IsAuthenticated, CanManageProperty]
+    parser_classes = [MultiPartParser, FormParser]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -206,9 +214,7 @@ class UnitListCreateView(APIView):
         self.paginator = UnitResultsSetPagination()
 
     def get(self, request):
-
         property_id = request.query_params.get("property")
-        print("this is the property id", property_id)
         if property_id:
             units = self.service.get_units_for_property(property_id)
         else:
@@ -220,7 +226,7 @@ class UnitListCreateView(APIView):
     def post(self, request):
         serializer = UnitSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
-            unit = self.service.create(**serializer.validated_data)
+            unit = self.service.create_unit(serializer.validated_data)
             output = UnitSerializer(unit, context={"request": request})
             return Response(output.data, status=201)
         return Response(serializer.errors, status=400)
@@ -228,6 +234,7 @@ class UnitListCreateView(APIView):
 
 class UnitDetailView(APIView):
     permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+    parser_classes = [MultiPartParser, FormParser]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -247,10 +254,24 @@ class UnitDetailView(APIView):
             return Response({"detail": "Not found"}, status=404)
         self.check_object_permissions(request, unit)
         serializer = UnitSerializer(
+            unit, data=request.data, context={"request": request}
+        )
+        if serializer.is_valid():
+            updated = self.service.update_unit(pk, serializer.validated_data)
+            output = UnitSerializer(updated, context={"request": request})
+            return Response(output.data)
+        return Response(serializer.errors, status=400)
+
+    def patch(self, request, pk):
+        unit = self.service.get_by_id(pk)
+        if not unit:
+            return Response({"detail": "Not found"}, status=404)
+        self.check_object_permissions(request, unit)
+        serializer = UnitSerializer(
             unit, data=request.data, partial=True, context={"request": request}
         )
         if serializer.is_valid():
-            updated = self.service.update(pk, **serializer.validated_data)
+            updated = self.service.update_unit(pk, serializer.validated_data)
             output = UnitSerializer(updated, context={"request": request})
             return Response(output.data)
         return Response(serializer.errors, status=400)
@@ -552,3 +573,146 @@ class PropertyManagerRemoveSingleView(APIView):
             )
         except ValueError as e:
             return Response({"detail": str(e)}, status=400)
+
+
+# ----------------------------------------------------------------------
+# Property Image Views
+# ----------------------------------------------------------------------
+class PropertyImageListView(APIView):
+    """List all images for a property."""
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = PropertyService()
+
+    def get(self, request, pk):
+        property = self.service.get_by_id(pk)
+        if not property:
+            return Response({"detail": "Property not found"}, status=404)
+        self.check_object_permissions(request, property)
+        images = self.service.get_property_images(pk)
+        serializer = PropertyImageSerializer(images, many=True)
+        return Response(serializer.data)
+
+
+class PropertyImageUploadView(APIView):
+    """Upload a new image for a property."""
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = PropertyService()
+
+    def post(self, request, pk):
+        property = self.service.get_by_id(pk)
+        if not property:
+            return Response({"detail": "Property not found"}, status=404)
+        self.check_object_permissions(request, property)
+
+        serializer = PropertyImageSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                image = self.service.add_property_image(pk, request.data["image"])
+                output = PropertyImageSerializer(image)
+                return Response(output.data, status=201)
+            except ValueError as e:
+                return Response({"detail": str(e)}, status=400)
+        return Response(serializer.errors, status=400)
+
+
+class PropertyImageDeleteView(APIView):
+    """Delete a specific property image."""
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = PropertyService()
+
+    def delete(self, request, pk, image_id):
+        # Verify property exists and user has permission
+        property = self.service.get_by_id(pk)
+        if not property:
+            return Response({"detail": "Property not found"}, status=404)
+        self.check_object_permissions(request, property)
+
+        try:
+            self.service.remove_property_image(image_id)
+            return Response(status=204)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=404)
+
+
+# ----------------------------------------------------------------------
+# Unit Image Views
+# ----------------------------------------------------------------------
+class UnitImageListView(APIView):
+    """List all images for a unit."""
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = UnitService()
+
+    def get(self, request, pk):
+        unit = self.service.get_by_id(pk)
+        if not unit:
+            return Response({"detail": "Unit not found"}, status=404)
+        self.check_object_permissions(request, unit)
+        images = self.service.get_unit_images(pk)
+        serializer = UnitImageSerializer(images, many=True)
+        return Response(serializer.data)
+
+
+class UnitImageUploadView(APIView):
+    """Upload a new image for a unit."""
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = UnitService()
+
+    def post(self, request, pk):
+        unit = self.service.get_by_id(pk)
+        if not unit:
+            return Response({"detail": "Unit not found"}, status=404)
+        self.check_object_permissions(request, unit)
+
+        serializer = UnitImageSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                image = self.service.add_unit_image(pk, request.data["image"])
+                output = UnitImageSerializer(image)
+                return Response(output.data, status=201)
+            except ValueError as e:
+                return Response({"detail": str(e)}, status=400)
+        return Response(serializer.errors, status=400)
+
+
+class UnitImageDeleteView(APIView):
+    """Delete a specific unit image."""
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = UnitService()
+
+    def delete(self, request, pk, image_id):
+        unit = self.service.get_by_id(pk)
+        if not unit:
+            return Response({"detail": "Unit not found"}, status=404)
+        self.check_object_permissions(request, unit)
+
+        try:
+            self.service.remove_unit_image(image_id)
+            return Response(status=204)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=404)
