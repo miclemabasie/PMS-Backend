@@ -95,8 +95,12 @@ class PropertyService(BaseService[Property]):
                 property.managers.set(managers)
 
             # Create images
-            for image in images:
-                PropertyImage.objects.create(property=property, image=image)
+            if images:
+                for image in images:
+                    PropertyImage.objects.create(property=property, image=image)
+                image = PropertyImage.objects.filter(property=property).first()
+                image.is_primary = True
+                image.save()
 
             return property
 
@@ -206,6 +210,13 @@ class PropertyService(BaseService[Property]):
         if not property:
             raise ValueError(f"Property with ID {property_id} not found")
         return property.property_images.all()
+
+    def ger_property_primary_image(self, property_id: str):
+        """Get the primary image for a property."""
+        property = self.get_by_id(property_id)
+        if not property:
+            raise ValueError(f"Property with ID {property_id} not found")
+        return property.get_primary_image()
 
 
 # ----------------------------------------------------------------------

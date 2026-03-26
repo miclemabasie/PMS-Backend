@@ -7,6 +7,8 @@ from phonenumber_field.modelfields import PhoneNumberField
 from django.core.validators import MinValueValidator, MaxValueValidator
 from model_utils import FieldTracker
 from apps.payments.models import PaymentTerm
+from django.urls import reverse
+from django.conf import settings
 
 # Create your models here.
 
@@ -153,6 +155,12 @@ class Property(TimeStampedUUIDModel):
     def __str__(self):
         return self.name
 
+    def get_primary_image(self):
+        image = self.property_images.filter(is_primary=True).first()
+        if image:
+            return f"{settings.DOMAIN}{image.image.url}"
+        return None
+
 
 class PropertyImage(models.Model):
     property = models.ForeignKey(
@@ -161,6 +169,9 @@ class PropertyImage(models.Model):
     alt_text = models.CharField(_("Alt text"), max_length=255, blank=True)
     is_primary = models.BooleanField(_("Primary image"), default=False)
     image = models.ImageField(upload_to="properties/")
+
+    def get_property_image_url(self):
+        return f"{settings.DOMAIN}{self.image.url}"
 
 
 class PropertyOwnership(TimeStampedUUIDModel):

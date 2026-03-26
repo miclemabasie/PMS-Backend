@@ -44,6 +44,7 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 DJANGO_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
+    # "django.contrib.sites",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
@@ -95,6 +96,8 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "pms.urls"
+
+DOMAIN = env("DOMAIN", default="http://localhost")
 
 # -----------------------------
 # Templates
@@ -185,6 +188,7 @@ CACHES = {
 CSRF_TRUSTED_ORIGINS = ["http://localhost", "http://127.0.0.1"]
 
 SITE_ID = 1
+
 
 # -----------------------------
 # Authentication & Accounts

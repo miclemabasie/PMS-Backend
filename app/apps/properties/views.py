@@ -161,9 +161,7 @@ class PropertyDetailView(APIView):
             property, data=request.data, partial=False, context={"request": request}
         )
         if serializer.is_valid():
-            updated = self.service.update_property(
-                pk, serializer.validated_data, manager_ids=request.data.get("managers")
-            )
+            updated = self.service.update_property(pk, serializer.validated_data)
             output = PropertySerializer(updated, context={"request": request})
             return Response(output.data)
         return Response(serializer.errors, status=400)
@@ -177,9 +175,7 @@ class PropertyDetailView(APIView):
             property, data=request.data, partial=True, context={"request": request}
         )
         if serializer.is_valid():
-            updated = self.service.update_property(
-                pk, serializer.validated_data, manager_ids=request.data.get("managers")
-            )
+            updated = self.service.update_property(pk, serializer.validated_data)
             output = PropertySerializer(updated, context={"request": request})
             return Response(output.data)
         return Response(serializer.errors, status=400)

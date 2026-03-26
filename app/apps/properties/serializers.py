@@ -17,10 +17,15 @@ from .utils import calculatate_occupancy_rate
 
 
 class PropertyImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
     class Meta:
         model = PropertyImage
-        fields = ["id", "image", "property", "alt_text", "is_primary"]
+        fields = ["id", "image", "image_url", "property", "alt_text", "is_primary"]
         read_only_fields = ["id", "property"]
+
+    def get_image_url(self, obj):
+        return obj.get_property_image_url()
 
 
 class UnitImageSerializer(serializers.ModelSerializer):
@@ -93,6 +98,69 @@ class PropertyOwnershipSerializer(serializers.ModelSerializer):
         fields = ["id", "pkid", "owner", "owner_id", "percentage", "is_primary"]
 
 
+# ----------------------------------------------------------------------
+# Unit serializers
+# ----------------------------------------------------------------------
+
+
+class UnitSerializer(serializers.ModelSerializer):
+    # property_detail = PropertySerializer(source="property", read_only=True)
+    property_id = serializers.PrimaryKeyRelatedField(
+        queryset=Property.objects.all(), source="property", write_only=True
+    )
+    default_payment_term_detail = PaymentTermSerializer(
+        source="default_payment_term", read_only=True
+    )
+    default_payment_term_id = serializers.PrimaryKeyRelatedField(
+        queryset=PaymentTerm.objects.all(),
+        source="default_payment_term",
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
+
+    unit_images = UnitImageSerializer(many=True, read_only=True)
+    images = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False,
+        help_text="List of images to upload with the unit",
+    )
+
+    class Meta:
+        model = Unit
+        fields = [
+            "id",
+            "pkid",
+            # "property_detail",
+            "property_id",
+            "unit_number",
+            "unit_type",
+            "floor",
+            "size_m2",
+            "bedrooms",
+            "bathrooms",
+            "default_rent_amount",
+            "default_payment_term",
+            "default_payment_term_detail",
+            "default_payment_term_id",
+            "default_security_deposit",
+            "status",
+            "amenities",
+            "amenities_fr",
+            "unit_images",
+            "images",
+            "water_meter_number",
+            "electricity_meter_number",
+            "has_prepaid_meter",
+            "custom_fields",
+            "language",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+
 class PropertySerializer(serializers.ModelSerializer):
     owners = PropertyOwnershipSerializer(
         source="ownership_records", many=True, read_only=True
@@ -105,9 +173,7 @@ class PropertySerializer(serializers.ModelSerializer):
         write_only=True,
         required=False,
     )
-    units = serializers.PrimaryKeyRelatedField(
-        many=True, read_only=True
-    )  # or use UnitSerializer with depth
+    units = UnitSerializer(many=True, read_only=True)
 
     occupancy_rate = serializers.SerializerMethodField()
     lower_bound = serializers.SerializerMethodField(read_only=True)
@@ -119,6 +185,8 @@ class PropertySerializer(serializers.ModelSerializer):
         required=False,
         help_text="List of images to upload with the property",
     )
+
+    primary_image = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Property
@@ -142,6 +210,7 @@ class PropertySerializer(serializers.ModelSerializer):
             "postal_code",
             "has_generator",
             "has_water_tank",
+            "primary_image",
             "images",
             "owners",
             "managers",
@@ -173,68 +242,11 @@ class PropertySerializer(serializers.ModelSerializer):
         # remove the .00 from the price
         return f"{int(price)}k"
 
+    def get_primary_image(self, obj):
+        return obj.get_primary_image()
 
-# ----------------------------------------------------------------------
-# Unit serializers
-# ----------------------------------------------------------------------
-
-
-class UnitSerializer(serializers.ModelSerializer):
-    property_detail = PropertySerializer(source="property", read_only=True)
-    property_id = serializers.PrimaryKeyRelatedField(
-        queryset=Property.objects.all(), source="property", write_only=True
-    )
-    default_payment_term_detail = PaymentTermSerializer(
-        source="default_payment_term", read_only=True
-    )
-    default_payment_term_id = serializers.PrimaryKeyRelatedField(
-        queryset=PaymentTerm.objects.all(),
-        source="default_payment_term",
-        write_only=True,
-        required=False,
-        allow_null=True,
-    )
-
-    unit_images = UnitImageSerializer(many=True, read_only=True)
-    images = serializers.ListField(
-        child=serializers.ImageField(),
-        write_only=True,
-        required=False,
-        help_text="List of images to upload with the unit",
-    )
-
-    class Meta:
-        model = Unit
-        fields = [
-            "id",
-            "pkid",
-            "property_detail",
-            "property_id",
-            "unit_number",
-            "unit_type",
-            "floor",
-            "size_m2",
-            "bedrooms",
-            "bathrooms",
-            "default_rent_amount",
-            "default_payment_term",
-            "default_payment_term_detail",
-            "default_payment_term_id",
-            "default_security_deposit",
-            "status",
-            "amenities",
-            "amenities_fr",
-            "unit_images",
-            "images",
-            "water_meter_number",
-            "electricity_meter_number",
-            "has_prepaid_meter",
-            "custom_fields",
-            "language",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["created_at", "updated_at"]
+    def get_units(self, obj):
+        return obj.units
 
 
 class PropertyManagerAssignmentSerializer(serializers.Serializer):
