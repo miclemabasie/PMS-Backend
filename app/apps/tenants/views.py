@@ -11,7 +11,7 @@ from .permissions import (
 )
 
 from .services import TenantService
-from .serializers import TenantSerializer
+from .serializers import TenantSerializer, TenantSearchResultSerializer
 from apps.core.utils import StandardResultsSetPagination
 
 # Create your views here.
@@ -47,6 +47,45 @@ class TenantListCreateView(APIView):
             output = TenantSerializer(tenant)
             return Response(output.data, status=201)
         return Response(serializer.errors, status=400)
+
+
+# ✅ NEW: Tenant Search View
+class TenantSearchView(APIView):
+    """
+    Allows Landlords/Managers to search for tenants by National ID.
+    Endpoint: GET /api/v1/tenants/search/?id_number=XXX
+    """
+
+    permission_classes = [IsAuthenticated, CanManageProperty]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = TenantService()
+
+    def get(self, request):
+        id_number = request.query_params.get("id_number")
+
+        if not id_number:
+            return Response(
+                {"detail": "id_number query parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Normalize ID number (uppercase, strip spaces) to match Task 1.1 logic
+        normalized_id = id_number.strip().upper()
+
+        # Search
+        result = self.service.search_tenant_by_id(normalized_id, request.user)
+
+        if not result:
+            return Response(
+                {"detail": "Tenant not found with this ID number"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Serialize
+        serializer = TenantSearchResultSerializer(result)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class TenantDetailView(APIView):

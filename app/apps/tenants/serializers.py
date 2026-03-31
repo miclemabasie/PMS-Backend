@@ -103,3 +103,19 @@ class TenantSerializer(serializers.ModelSerializer):
             validated_data["id_number"] = validated_data["id_number"].strip().upper()
 
         return super().update(instance, validated_data)
+
+
+class TenantSearchResultSerializer(serializers.Serializer):
+    """
+    Serializer for tenant search results.
+    Excludes sensitive data (guarantors, full ID, documents).
+    """
+
+    id = serializers.UUIDField()
+    pkid = serializers.CharField()
+    full_name = serializers.CharField()
+    email = serializers.EmailField()
+    phone = serializers.CharField(allow_null=True)
+    id_number_masked = serializers.CharField()
+    current_status = serializers.CharField()
+    reputation = serializers.DictField()
