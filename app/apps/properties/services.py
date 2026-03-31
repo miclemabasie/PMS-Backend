@@ -105,6 +105,7 @@ class PropertyService(BaseService[Property]):
             return property
 
     def update_property(self, id: str, data: dict) -> Optional[Property]:
+        print("@@@@@@@@@ this is the data", data)
         with transaction.atomic():
             property = self.get_by_id(id)
             if not property:
@@ -120,11 +121,24 @@ class PropertyService(BaseService[Property]):
             if managers is not None:
                 property.managers.set(managers)
 
+            has_primary_image = PropertyImage.objects.filter(
+                property=property, is_primary=True
+            ).exists()
+            print("$$$$$$$$$$$ these are the images", images)
             # Update images
             if images is not None:
+                print(
+                    "##### Setting the primary image for the property",
+                    has_primary_image,
+                )
                 property.property_images.all().delete()
                 for image in images:
                     PropertyImage.objects.create(property=property, image=image)
+
+                if not has_primary_image:
+                    image = PropertyImage.objects.filter(property=property).first()
+                    image.is_primary = True
+                    image.save()
 
             return property
 
@@ -194,6 +208,14 @@ class PropertyService(BaseService[Property]):
         property = self.get_by_id(property_id)
         if not property:
             raise ValueError(f"Property with ID {property_id} not found")
+
+        # check if poeprty does not have a primary image and set the first to be so
+        if not property.get_primary_image():
+            image = PropertyImage.objects.filter(property=property).first()
+            if image:
+                image.is_primary = True
+                image.save()
+
         return PropertyImage.objects.create(property=property, image=image_file)
 
     def remove_property_image(self, image_id: int) -> None:
@@ -233,8 +255,12 @@ class UnitService(BaseService[Unit]):
         unit = self.repository.create(**data)
 
         # Create images
-        for image in images:
-            UnitImage.objects.create(unit=unit, image=image)
+        if images:
+            for image in images:
+                UnitImage.objects.create(unit=unit, image=image)
+            image = UnitImage.objects.filter(unit=unit).first()
+            image.is_primary = True
+            image.save()
 
         return unit
 

@@ -14,11 +14,17 @@ from django.conf import settings
 
 
 class PropertyType(models.TextChoices):
-    APARTMENT = "apartment", _("Apartment building")
-    HOUSE = "house", _("Single family house")
-    COMMERCIAL = "commercial", _("Commercial (shop/office)")
+    APARTMENT = "apartment_unit", _("Apartment (Single Unit)")
+    APARTMENT_BUILDING = "apartment_building", _("Apartment Building")
+    VILLA = "villa", _("Villa")
+    HOUSE = "house", _("House")
+    DUPLEX = "duplex", _("Duplex")
+    STUDIO = "studio", _("Studio")
     LAND = "land", _("Land")
-    HOSTEL = "hostel", _("Hostel")
+    SHOP = "shop", _("Shop / Store")
+    OFFICE = "office", _("Office")
+    COMMERCIAL = "commercial", _("Commercial Space")
+    HOSTEL = "hostel", _("Hostel / Student Housing")
     OTHER = "other", _("Other")
 
 
