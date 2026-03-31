@@ -18,6 +18,12 @@ class Tenant(TimeStampedUUIDModel):
         related_name="tenant_profile",
         verbose_name=_("User"),
     )
+    is_discoverable = models.BooleanField(
+        _("Is Discoverable"),
+        default=True,
+        help_text=_("Allow landlords/managers to find this tenant via search."),
+    )
+    is_verified = models.BooleanField(_("Verified"), default=False)
     is_primary = models.BooleanField(_("Primary tenant"), default=False)
     id_number = models.CharField(
         _("ID number (CNI/Passport)"), max_length=50, unique=True
@@ -84,6 +90,7 @@ class Tenant(TimeStampedUUIDModel):
         indexes = [
             models.Index(fields=["user"]),
             models.Index(fields=["id_number"]),
+            models.Index(fields=["is_discoverable"]),
         ]
         constraints = [
             models.UniqueConstraint(
