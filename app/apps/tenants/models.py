@@ -19,9 +19,17 @@ class Tenant(TimeStampedUUIDModel):
         verbose_name=_("User"),
     )
     is_primary = models.BooleanField(_("Primary tenant"), default=False)
-    id_number = models.CharField(_("ID number (CNI/Passport)"), max_length=50)
+    id_number = models.CharField(
+        _("ID number (CNI/Passport)"), max_length=50, unique=True
+    )
     id_document = models.FileField(
         _("ID scan"), upload_to="tenants/ids/", blank=True, null=True
+    )
+    id_document_front = models.FileField(
+        _("ID front scan"), upload_to="tenants/ids/", blank=True, null=True
+    )
+    id_document_back = models.FileField(
+        _("ID back scan"), upload_to="tenants/ids/", blank=True, null=True
     )
     emergency_contact_name = models.CharField(
         _("Emergency contact name"), max_length=255, blank=True
@@ -76,6 +84,11 @@ class Tenant(TimeStampedUUIDModel):
         indexes = [
             models.Index(fields=["user"]),
             models.Index(fields=["id_number"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["id_number"], name="unique_tenant_id_number"
+            )
         ]
 
     def __str__(self):
