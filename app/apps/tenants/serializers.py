@@ -105,6 +105,30 @@ class TenantSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
+class TenantDiscoveryToggleSerializer(serializers.Serializer):
+    """
+    Serializer for tenant discovery toggle request.
+    """
+
+    is_discoverable = serializers.BooleanField(required=True)
+
+
+class AdminTenantControlSerializer(serializers.Serializer):
+    """
+    Serializer for admin tenant control request.
+    """
+
+    is_discoverable = serializers.BooleanField(required=False, allow_null=True)
+    is_verified = serializers.BooleanField(required=False, allow_null=True)
+
+    def validate(self, data):
+        if data.get("is_discoverable") is None and data.get("is_verified") is None:
+            raise serializers.ValidationError(
+                "At least one field (is_discoverable or is_verified) is required"
+            )
+        return data
+
+
 class TenantSearchResultSerializer(serializers.Serializer):
     """
     Serializer for tenant search results.
@@ -118,4 +142,5 @@ class TenantSearchResultSerializer(serializers.Serializer):
     phone = serializers.CharField(allow_null=True)
     id_number_masked = serializers.CharField()
     current_status = serializers.CharField()
+    is_discoverable = serializers.BooleanField()
     reputation = serializers.DictField()
