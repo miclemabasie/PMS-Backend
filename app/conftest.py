@@ -1,6 +1,8 @@
 """
 Global pytest fixtures for the entire PMS project.
 This file is automatically discovered by pytest - do NOT import it manually.
+
+Fixtures provide reusable test data and setup code.
 """
 
 import pytest

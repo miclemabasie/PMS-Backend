@@ -1,0 +1,35 @@
+[run]
+branch = True
+source = apps
+omit = 
+    */migrations/*
+    */tests/*
+    */admin.py
+    */apps.py
+    */__init__.py
+    */settings/*
+    */asgi.py
+    */wsgi.py
+    */manage.py
+    */code_generation*.py
+    */helpers/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    if settings.DEBUG
+    # Ignore abstract methods
+    @abstractmethod
+    pass
+
+[html]
+directory = htmlcov
+title = PMS Coverage Report
+
+[xml]
+output = coverage.xml

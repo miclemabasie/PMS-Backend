@@ -38,8 +38,9 @@ class UserViewSet(viewsets.ModelViewSet):
     ordering_fields = ["date_joined", "last_login", "username"]
     ordering = ["-date_joined"]
 
+    # In UserViewSet.get_permissions() method - ADD 'assign_role' to admin list:
     def get_permissions(self):
-        if self.action in ["list", "destroy"]:
+        if self.action in ["list", "destroy", "assign_role"]:
             self.permission_classes = [permissions.IsAdminUser]
         elif self.action in ["retrieve", "update", "partial_update"]:
             self.permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]

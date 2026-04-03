@@ -42,7 +42,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=False)
-    date_joined = models.DateField(default=timezone.now)
+    date_joined = models.DateTimeField(default=timezone.now)
 
     objects = CustomUserManager()
 
@@ -101,7 +101,7 @@ class Profile(TimeStampedUUIDModel):
         default=Gender.OTHER,
         max_length=20,
     )
-    country = CountryField(_("Country"), default="CMR", blank=False, null=False)
+    country = CountryField(_("Country"), default="CM", blank=False, null=False)
     city = models.CharField(_("City"), max_length=180, default="Bamenda")
     address = models.CharField(_("Address"), max_length=100, default="Address")
     phone_number = PhoneNumberField(

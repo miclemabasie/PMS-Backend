@@ -124,10 +124,25 @@ migrate-elasticsearch:
 # Testing & Code Quality
 # ----------------------------------------------------------------------------
 test:
-	docker compose exec api pytest -p no:warnings --cov=.
+	docker compose exec api pytest apps/users/tests/ -p no:warnings --cov=apps --cov-report=term-missing -v
 
 test-html:
-	docker compose exec api pytest -p no:warnings --cov=. --cov-report html
+	docker compose exec api pytest apps/users/tests/ -p no:warnings --cov=apps --cov-report=html --cov-report=term-missing -v
+
+test-full:
+	docker compose exec api pytest -p no:warnings --cov=apps --cov-report=term-missing --cov-report=html -v
+
+test-unit:
+	docker compose exec api pytest apps/users/tests/test_models.py apps/users/tests/test_serializers.py -p no:warnings -v -m unit
+
+test-integration:
+	docker compose exec api pytest apps/users/tests/test_views.py -p no:warnings -v -m integration
+
+test-users:
+	docker compose exec api pytest apps/users/tests/ -p no:warnings --cov=apps/users --cov-report=term-missing --cov-report=html -v
+
+test-properties:
+	docker compose exec api pytest apps/properties/tests/ -p no:warnings --cov=apps/properties --cov-report=term-missing --cov-report=html -v
 
 flake8:
 	docker compose exec api flake8
