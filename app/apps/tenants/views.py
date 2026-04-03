@@ -11,25 +11,23 @@ from .permissions import (
 )
 
 from .services import TenantService
-from .serializers import TenantSerializer, TenantSearchResultSerializer
-from apps.core.utils import StandardResultsSetPagination
-
-
-from .services import TenantService
-from .serializers import TenantSerializer, TenantSearchResultSerializer
+from .serializers import (
+    TenantSerializer,
+    TenantSearchResultSerializer,
+    TenantDetailSerializer,
+)
 from apps.core.utils import StandardResultsSetPagination
 from apps.core.logging import CustomLogger
 
 logger = CustomLogger(__name__)
 
 
-# Create your views here.
-
-
-# ----------------------------------------------------------------------
-# Tenant Views
-# ----------------------------------------------------------------------
 class TenantListCreateView(APIView):
+    """
+    List tenants for the current user (landlord/manager).
+    Superadmin can see all tenants.
+    """
+
     permission_classes = [IsAuthenticated, CanManageProperty]
 
     def __init__(self, **kwargs):
@@ -38,15 +36,15 @@ class TenantListCreateView(APIView):
         self.paginator = StandardResultsSetPagination()
 
     def get(self, request):
-        # Filter by property if provided
         property_id = request.query_params.get("property")
+
         if property_id:
-            # Get all tenants with leases in that property
             tenants = self.service.get_tenants_for_property(property_id)
         else:
-            tenants = self.service.get_all()
+            tenants = self.service.get_tenants_for_landlord(request.user)
+
         page = self.paginator.paginate_queryset(tenants, request)
-        serializer = TenantSerializer(page, many=True)
+        serializer = TenantSerializer(page, many=True, context={"request": request})
         return self.paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
@@ -58,7 +56,53 @@ class TenantListCreateView(APIView):
         return Response(serializer.errors, status=400)
 
 
-# ✅ NEW: Tenant Search View
+class TenantDetailView(APIView):
+    """
+    Get detailed tenant information including lease and payment history.
+    """
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = TenantService()
+
+    def get(self, request, pk):
+        details = self.service.get_tenant_details(pk, request.user)
+
+        if not details:
+            return Response({"detail": "Not found or access denied"}, status=404)
+
+        serializer = TenantDetailSerializer(details, context={"request": request})
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        tenant = self.service.get_by_id(pk)
+        if not tenant:
+            return Response({"detail": "Not found"}, status=404)
+        self.check_object_permissions(request, tenant)
+
+        serializer = TenantSerializer(tenant, data=request.data, partial=True)
+        if serializer.is_valid():
+            updated = self.service.update(pk, **serializer.validated_data)
+            output = TenantSerializer(updated)
+            return Response(output.data)
+        return Response(serializer.errors, status=400)
+
+    def delete(self, request, pk):
+        tenant = self.service.get_by_id(pk)
+        if not tenant:
+            return Response({"detail": "Not found"}, status=404)
+        self.check_object_permissions(request, tenant)
+
+        if tenant.leases.filter(status="active").exists():
+            return Response(
+                {"detail": "Cannot delete tenant with active lease"}, status=400
+            )
+        self.service.delete(pk)
+        return Response(status=204)
+
+
 class TenantSearchView(APIView):
     """
     Allows Landlords/Managers to search for tenants by National ID.
@@ -80,10 +124,7 @@ class TenantSearchView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Normalize ID number (uppercase, strip spaces) to match Task 1.1 logic
         normalized_id = id_number.strip().upper()
-
-        # Search
         result = self.service.search_tenant_by_id(normalized_id, request.user)
 
         if not result:
@@ -92,58 +133,13 @@ class TenantSearchView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Serialize
         serializer = TenantSearchResultSerializer(result)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class TenantDetailView(APIView):
-    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.service = TenantService()
-
-    def get(self, request, pk):
-        tenant = self.service.get_by_id(pk)
-        if not tenant:
-            return Response({"detail": "Not found"}, status=404)
-        self.check_object_permissions(request, tenant)
-        serializer = TenantSerializer(tenant)
-        return Response(serializer.data)
-
-    def put(self, request, pk):
-        tenant = self.service.get_by_id(pk)
-        if not tenant:
-            return Response({"detail": "Not found"}, status=404)
-        self.check_object_permissions(request, tenant)
-        serializer = TenantSerializer(tenant, data=request.data, partial=True)
-        if serializer.is_valid():
-            updated = self.service.update(pk, **serializer.validated_data)
-            output = TenantSerializer(updated)
-            return Response(output.data)
-        return Response(serializer.errors, status=400)
-
-    def delete(self, request, pk):
-        tenant = self.service.get_by_id(pk)
-        if not tenant:
-            return Response({"detail": "Not found"}, status=404)
-        self.check_object_permissions(request, tenant)
-        # Only allow if no active lease
-        if tenant.leases.filter(status="active").exists():
-            return Response(
-                {"detail": "Cannot delete tenant with active lease"}, status=400
-            )
-        self.service.delete(pk)
-        return Response(status=204)
 
 
 class TenantDiscoveryToggleView(APIView):
     """
     Allows tenants to toggle their own discoverability status.
-    Endpoint: PATCH /api/v1/tenants/discovery-toggle/
-
-    Tenants can only toggle their OWN status.
     """
 
     permission_classes = [IsAuthenticated]
@@ -153,7 +149,6 @@ class TenantDiscoveryToggleView(APIView):
         self.service = TenantService()
 
     def patch(self, request):
-        # Get current user's tenant profile
         if not hasattr(request.user, "tenant_profile"):
             return Response(
                 {"detail": "User does not have a tenant profile"},
@@ -175,19 +170,10 @@ class TenantDiscoveryToggleView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Update tenant discoverability
         try:
             updated_tenant = self.service.update_discovery_status(
-                tenant.id, is_discoverable
+                str(tenant.pkid), is_discoverable
             )
-
-            # Log the action
-            # logger.action(
-            #     action="tenant_discovery_toggled",
-            #     actor=request.user.email,
-            #     tenant_id=str(tenant.pkid),
-            #     new_status=is_discoverable,
-            # )
 
             return Response(
                 {
@@ -213,9 +199,6 @@ class TenantDiscoveryToggleView(APIView):
 class AdminTenantControlView(APIView):
     """
     Allows admins to control any tenant's discoverability and verification status.
-    Endpoint: PATCH /api/v1/tenants/{id}/admin-control/
-
-    Only superadmins can access this endpoint.
     """
 
     permission_classes = [IsAuthenticated]
@@ -225,21 +208,18 @@ class AdminTenantControlView(APIView):
         self.service = TenantService()
 
     def patch(self, request, pk):
-        # Check if user is superadmin
         if not request.user.is_superuser:
             return Response(
                 {"detail": "Only superadmins can access this endpoint"},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Get tenant by pkid
         tenant = self.service.get_by_id(pk)
         if not tenant:
             return Response(
                 {"detail": "Tenant not found"}, status=status.HTTP_404_NOT_FOUND
             )
 
-        # Get update fields from request
         is_discoverable = request.data.get("is_discoverable")
         is_verified = request.data.get("is_verified")
 
@@ -268,18 +248,10 @@ class AdminTenantControlView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Update tenant
         try:
-            updated_tenant = self.service.admin_update_tenant_status(tenant.id, updates)
-
-            # Log the action for audit
-            # logger.action(
-            #     action="admin_tenant_control",
-            #     actor=request.user.email,
-            #     tenant_id=str(tenant.pkid),
-            #     tenant_email=tenant.user.email,
-            #     updates=updates,
-            # )
+            updated_tenant = self.service.admin_update_tenant_status(
+                str(tenant.pkid), updates
+            )
 
             return Response(
                 {
@@ -306,42 +278,3 @@ class AdminTenantControlView(APIView):
                 {"detail": "Failed to update tenant status"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.service = TenantService()
-
-    def get(self, request, pk):
-        tenant = self.service.get_by_id(pk)
-        if not tenant:
-            return Response({"detail": "Not found"}, status=404)
-        self.check_object_permissions(request, tenant)
-        serializer = TenantSerializer(tenant)
-        return Response(serializer.data)
-
-    def put(self, request, pk):
-        tenant = self.service.get_by_id(pk)
-        if not tenant:
-            return Response({"detail": "Not found"}, status=404)
-        self.check_object_permissions(request, tenant)
-        serializer = TenantSerializer(tenant, data=request.data, partial=True)
-        if serializer.is_valid():
-            updated = self.service.update(pk, **serializer.validated_data)
-            output = TenantSerializer(updated)
-            return Response(output.data)
-        return Response(serializer.errors, status=400)
-
-    def delete(self, request, pk):
-        tenant = self.service.get_by_id(pk)
-        if not tenant:
-            return Response({"detail": "Not found"}, status=404)
-        self.check_object_permissions(request, tenant)
-        # Only allow if no active lease
-        if tenant.leases.filter(status="active").exists():
-            return Response(
-                {"detail": "Cannot delete tenant with active lease"}, status=400
-            )
-        self.service.delete(pk)
-        return Response(status=204)

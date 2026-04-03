@@ -323,6 +323,18 @@ class UnitService(BaseService[Unit]):
             raise ValueError(f"Unit with ID {unit_id} not found")
         return unit.unit_images.all()
 
+    def get_units_for_user(self, user, status=None):
+        """
+        Return units accessible by the given user.
+
+        Rules:
+        - Superuser: all units
+        - Owner: units from properties they own
+        - Manager: units from properties they manage
+        - Others: empty queryset
+        """
+        return self.repository.find_by_user(user, status=status)
+
 
 class PropertyOwnershipService(BaseService[PropertyOwnership]):
     def __init__(self):

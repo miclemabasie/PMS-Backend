@@ -209,12 +209,49 @@ class UnitListCreateView(APIView):
         self.service = UnitService()
         self.paginator = UnitResultsSetPagination()
 
+    # def get(self, request):
+    #     property_id = request.query_params.get("property")
+    #     if property_id:
+    #         units = self.service.get_units_for_property(property_id)
+    #     else:
+    #         units = self.service.get_all()
+    #     page = self.paginator.paginate_queryset(units, request)
+    #     serializer = UnitSerializer(page, many=True, context={"request": request})
+    #     return self.paginator.get_paginated_response(serializer.data)
+
     def get(self, request):
         property_id = request.query_params.get("property")
+        status = request.query_params.get("status")
+
         if property_id:
+            # If property ID is provided, get units for that property
+            # But still verify user has access to that property
             units = self.service.get_units_for_property(property_id)
+            # Verify user has access to this property
+            from .services import PropertyService
+
+            prop_service = PropertyService()
+            property = prop_service.get_by_id(property_id)
+            if not property:
+                return Response({"detail": "Property not found"}, status=404)
+
+            # Check if user has access to this property
+            if not request.user.is_superuser:
+                if hasattr(request.user, "owner_profile"):
+                    if not property.ownership_records.filter(
+                        owner=request.user.owner_profile
+                    ).exists():
+                        return Response({"detail": "Permission denied"}, status=403)
+                elif hasattr(request.user, "manager_profile"):
+                    if not property.managers.filter(
+                        id=request.user.manager_profile.id
+                    ).exists():
+                        return Response({"detail": "Permission denied"}, status=403)
+                else:
+                    return Response({"detail": "Permission denied"}, status=403)
         else:
-            units = self.service.get_all()
+            units = self.service.get_units_for_user(request.user, status=status)
+
         page = self.paginator.paginate_queryset(units, request)
         serializer = UnitSerializer(page, many=True, context={"request": request})
         return self.paginator.get_paginated_response(serializer.data)
