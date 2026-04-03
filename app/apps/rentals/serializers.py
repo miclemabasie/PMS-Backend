@@ -31,7 +31,7 @@ from apps.properties.serializers import (
 class PaymentTermSerializer(serializers.ModelSerializer):
     class Meta:
         model = PaymentTerm
-        fields = ["id", "name", "interval_months", "description"]
+        fields = ["id", "pkid", "name", "interval_months", "description"]
 
 
 # ----------------------------------------------------------------------

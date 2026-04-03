@@ -11,16 +11,23 @@ from .permissions import (
 )
 
 from .services import TenantService
-from .serializers import TenantSerializer
+from .serializers import (
+    TenantSerializer,
+    TenantSearchResultSerializer,
+    TenantDetailSerializer,
+)
 from apps.core.utils import StandardResultsSetPagination
+from apps.core.logging import CustomLogger
 
-# Create your views here.
+logger = CustomLogger(__name__)
 
 
-# ----------------------------------------------------------------------
-# Tenant Views
-# ----------------------------------------------------------------------
 class TenantListCreateView(APIView):
+    """
+    List tenants for the current user (landlord/manager).
+    Superadmin can see all tenants.
+    """
+
     permission_classes = [IsAuthenticated, CanManageProperty]
 
     def __init__(self, **kwargs):
@@ -29,15 +36,15 @@ class TenantListCreateView(APIView):
         self.paginator = StandardResultsSetPagination()
 
     def get(self, request):
-        # Filter by property if provided
         property_id = request.query_params.get("property")
+
         if property_id:
-            # Get all tenants with leases in that property
             tenants = self.service.get_tenants_for_property(property_id)
         else:
-            tenants = self.service.get_all()
+            tenants = self.service.get_tenants_for_landlord(request.user)
+
         page = self.paginator.paginate_queryset(tenants, request)
-        serializer = TenantSerializer(page, many=True)
+        serializer = TenantSerializer(page, many=True, context={"request": request})
         return self.paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
@@ -50,6 +57,10 @@ class TenantListCreateView(APIView):
 
 
 class TenantDetailView(APIView):
+    """
+    Get detailed tenant information including lease and payment history.
+    """
+
     permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
 
     def __init__(self, **kwargs):
@@ -57,11 +68,12 @@ class TenantDetailView(APIView):
         self.service = TenantService()
 
     def get(self, request, pk):
-        tenant = self.service.get_by_id(pk)
-        if not tenant:
-            return Response({"detail": "Not found"}, status=404)
-        self.check_object_permissions(request, tenant)
-        serializer = TenantSerializer(tenant)
+        details = self.service.get_tenant_details(pk, request.user)
+
+        if not details:
+            return Response({"detail": "Not found or access denied"}, status=404)
+
+        serializer = TenantDetailSerializer(details, context={"request": request})
         return Response(serializer.data)
 
     def put(self, request, pk):
@@ -69,6 +81,7 @@ class TenantDetailView(APIView):
         if not tenant:
             return Response({"detail": "Not found"}, status=404)
         self.check_object_permissions(request, tenant)
+
         serializer = TenantSerializer(tenant, data=request.data, partial=True)
         if serializer.is_valid():
             updated = self.service.update(pk, **serializer.validated_data)
@@ -81,10 +94,187 @@ class TenantDetailView(APIView):
         if not tenant:
             return Response({"detail": "Not found"}, status=404)
         self.check_object_permissions(request, tenant)
-        # Only allow if no active lease
+
         if tenant.leases.filter(status="active").exists():
             return Response(
                 {"detail": "Cannot delete tenant with active lease"}, status=400
             )
         self.service.delete(pk)
         return Response(status=204)
+
+
+class TenantSearchView(APIView):
+    """
+    Allows Landlords/Managers to search for tenants by National ID.
+    Endpoint: GET /api/v1/tenants/search/?id_number=XXX
+    """
+
+    permission_classes = [IsAuthenticated, CanManageProperty]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = TenantService()
+
+    def get(self, request):
+        id_number = request.query_params.get("id_number")
+
+        if not id_number:
+            return Response(
+                {"detail": "id_number query parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        normalized_id = id_number.strip().upper()
+        result = self.service.search_tenant_by_id(normalized_id, request.user)
+
+        if not result:
+            return Response(
+                {"detail": "Tenant not found with this ID number"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = TenantSearchResultSerializer(result)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class TenantDiscoveryToggleView(APIView):
+    """
+    Allows tenants to toggle their own discoverability status.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = TenantService()
+
+    def patch(self, request):
+        if not hasattr(request.user, "tenant_profile"):
+            return Response(
+                {"detail": "User does not have a tenant profile"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        tenant = request.user.tenant_profile
+        is_discoverable = request.data.get("is_discoverable")
+
+        if is_discoverable is None:
+            return Response(
+                {"detail": "is_discoverable field is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not isinstance(is_discoverable, bool):
+            return Response(
+                {"detail": "is_discoverable must be a boolean value"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            updated_tenant = self.service.update_discovery_status(
+                str(tenant.pkid), is_discoverable
+            )
+
+            return Response(
+                {
+                    "detail": "Discovery status updated successfully",
+                    "is_discoverable": updated_tenant.is_discoverable,
+                    "updated_at": updated_tenant.updated_at.isoformat(),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(
+                "Failed to update discovery status",
+                exc=e,
+                tenant_id=str(tenant.pkid),
+            )
+            return Response(
+                {"detail": "Failed to update discovery status"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class AdminTenantControlView(APIView):
+    """
+    Allows admins to control any tenant's discoverability and verification status.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = TenantService()
+
+    def patch(self, request, pk):
+        if not request.user.is_superuser:
+            return Response(
+                {"detail": "Only superadmins can access this endpoint"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        tenant = self.service.get_by_id(pk)
+        if not tenant:
+            return Response(
+                {"detail": "Tenant not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        is_discoverable = request.data.get("is_discoverable")
+        is_verified = request.data.get("is_verified")
+
+        updates = {}
+        if is_discoverable is not None:
+            if not isinstance(is_discoverable, bool):
+                return Response(
+                    {"detail": "is_discoverable must be a boolean value"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            updates["is_discoverable"] = is_discoverable
+
+        if is_verified is not None:
+            if not isinstance(is_verified, bool):
+                return Response(
+                    {"detail": "is_verified must be a boolean value"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            updates["is_verified"] = is_verified
+
+        if not updates:
+            return Response(
+                {
+                    "detail": "At least one field (is_discoverable or is_verified) is required"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            updated_tenant = self.service.admin_update_tenant_status(
+                str(tenant.pkid), updates
+            )
+
+            return Response(
+                {
+                    "detail": "Tenant status updated successfully",
+                    "tenant": {
+                        "id": str(updated_tenant.pkid),
+                        "email": updated_tenant.user.email,
+                        "full_name": updated_tenant.user.get_full_name(),
+                        "is_discoverable": updated_tenant.is_discoverable,
+                        "is_verified": updated_tenant.is_verified,
+                        "updated_at": updated_tenant.updated_at.isoformat(),
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(
+                "Admin tenant control failed",
+                exc=e,
+                tenant_id=str(tenant.pkid),
+            )
+            return Response(
+                {"detail": "Failed to update tenant status"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
