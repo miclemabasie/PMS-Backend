@@ -12,7 +12,7 @@ User = get_user_model()
 class UserMinimalSerializer(serializers.ModelSerializer):
     """Minimal user info for nested relations."""
 
-    phone = serializers.CharField(source="profile.phone", read_only=True)
+    phone = serializers.CharField(source="profile.phone_number", read_only=True)
 
     class Meta:
         model = User
