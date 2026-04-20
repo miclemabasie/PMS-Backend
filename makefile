@@ -231,6 +231,34 @@ clean: down-v
 	docker volume prune -f
 	@echo "✅ Cleaned up Docker system and volumes."
 
+
+# ----------------------------------------------------------------------------
+# Documentation
+# ----------------------------------------------------------------------------
+
+.PHONY: docs-check docs-gen docs-serve
+
+# Validate docs consistency
+docs-check:
+	@echo "🔍 Checking env vars sync..."
+	python scripts/check_env_docs.py
+	@echo "🔍 Checking API docs vs schema..."
+	python scripts/validate_api_docs.py
+	@echo "🔍 Checking for broken links..."
+	find docs -name "*.md" -exec markdown-link-check {} \;
+
+# Regenerate auto-docs
+docs-gen:
+	@echo "🔄 Generating OpenAPI schema..."
+	python app/manage.py spectacular --file docs/API/reference/openapi.yaml
+	@echo "🔄 Updating schema diagram..."
+	python scripts/generate_erd.py --output docs/DATA/schema.mmd
+
+# Serve docs locally (with live reload)
+docs-serve:
+	@echo "🌐 Serving docs at http://localhost:8001"
+	mkdocs serve -f mkdocs.yml -a 0.0.0.0:8001
+
 # ----------------------------------------------------------------------------
 # Help
 # ----------------------------------------------------------------------------

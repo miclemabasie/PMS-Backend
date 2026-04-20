@@ -1,0 +1,22 @@
+# .github/workflows/docs.yml
+name: Documentation Checks
+on: [pull_request]
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with: { python-version: "3.12" }
+
+      - name: Install deps
+        run: pip install -r requirements.txt markdown-link-check
+
+      - name: Run docs validation
+        run: make docs-check
+
+      - name: Build docs (optional)
+        run: mkdocs build -f mkdocs.yml

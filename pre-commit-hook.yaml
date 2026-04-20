@@ -1,0 +1,19 @@
+- repo: local
+  hooks:
+    - id: check-env-docs-sync
+      name: Check .env.example vs docs/env-variables.md
+      entry: python scripts/check_env_docs.py
+      language: system
+      pass_filenames: false
+
+    - id: check-api-docs-sync
+      name: Validate API docs match OpenAPI schema
+      entry: python scripts/validate_api_docs.py
+      language: system
+      pass_filenames: false
+
+    - id: markdown-link-check
+      name: Check markdown links
+      entry: markdown-link-check
+      language: node
+      files: \.md$
