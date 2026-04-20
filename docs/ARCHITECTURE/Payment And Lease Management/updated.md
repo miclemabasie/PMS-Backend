@@ -1,4 +1,4 @@
-You're absolutely right. Forcing a tenant to manually type an amount and guess which installment they're paying is terrible UX. The system should **show the options clearly**:
+The system should **show the options clearly**:
 
 - **60% (180,000 XAF)** – first installment
 - **40% (120,000 XAF)** – second installment  
@@ -6,7 +6,6 @@ You're absolutely right. Forcing a tenant to manually type an amount and guess w
 
 And only if the landlord enables "custom amount", there can be an **"Other amount"** button that opens a numeric input.
 
-Let me revise the architecture to reflect this, focusing on the **yearly installment mode** and making the payment flow explicit.
 
 ---
 
