@@ -120,6 +120,8 @@ populate_test_data_reset:
 migrate-elasticsearch:
 	docker compose exec api python manage.py search_index --rebuild
 
+
+
 # ----------------------------------------------------------------------------
 # Testing & Code Quality
 # ----------------------------------------------------------------------------
@@ -144,11 +146,21 @@ test-users:
 test-properties:
 	docker compose exec api pytest apps/properties/tests/ -p no:warnings --cov=apps/properties --cov-report=term-missing --cov-report=html -v
 
+test-properties-models:
+	docker compose exec api pytest apps/properties/tests/test_models.py -p no:warnings --cov=apps/properties --cov-report=term-missing --cov-report=html -v
+
+test-properties-serializers:
+	docker compose exec api pytest apps/properties/tests/test_serializers.py -p no:warnings --cov=apps/properties --cov-report=term-missing --cov-report=html -v
+
+test-properties-views:
+	docker compose exec api pytest apps/properties/tests/test_views.py -p no:warnings --cov=apps/properties --cov-report=term-missing --cov-report=html -v
+
 flake8:
 	docker compose exec api flake8
 
 black-check:
-	docker compose exec api black --check --exclude=migrations .
+	docker compose exec api black --check --exclude=migrations .docker compose exec api pytest apps/properties/tests/test_models.py -p no:warnings --cov=apps/properties --cov-report=term-missing --cov-report=html -v
+
 
 black-diff:
 	docker compose exec api black --diff --exclude=migrations .

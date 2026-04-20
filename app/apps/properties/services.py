@@ -105,7 +105,6 @@ class PropertyService(BaseService[Property]):
             return property
 
     def update_property(self, id: str, data: dict) -> Optional[Property]:
-        print("@@@@@@@@@ this is the data", data)
         with transaction.atomic():
             property = self.get_by_id(id)
             if not property:
@@ -124,13 +123,8 @@ class PropertyService(BaseService[Property]):
             has_primary_image = PropertyImage.objects.filter(
                 property=property, is_primary=True
             ).exists()
-            print("$$$$$$$$$$$ these are the images", images)
             # Update images
             if images is not None:
-                print(
-                    "##### Setting the primary image for the property",
-                    has_primary_image,
-                )
                 property.property_images.all().delete()
                 for image in images:
                     PropertyImage.objects.create(property=property, image=image)

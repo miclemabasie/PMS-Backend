@@ -104,7 +104,7 @@ class PropertyOwnershipSerializer(serializers.ModelSerializer):
 
 
 class UnitSerializer(serializers.ModelSerializer):
-    # property_detail = PropertySerializer(source="property", read_only=True)
+    property_detail = serializers.SerializerMethodField()
     property_id = serializers.PrimaryKeyRelatedField(
         queryset=Property.objects.all(), source="property", write_only=True
     )
@@ -118,7 +118,6 @@ class UnitSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
-
     unit_images = UnitImageSerializer(many=True, read_only=True)
     images = serializers.ListField(
         child=serializers.ImageField(),
@@ -132,7 +131,7 @@ class UnitSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "pkid",
-            # "property_detail",
+            "property_detail",
             "property_id",
             "unit_number",
             "unit_type",
@@ -159,6 +158,19 @@ class UnitSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
+
+    def get_property_detail(self, obj):
+        """Return minimal property info to avoid circular reference"""
+        if obj.property:
+            return {
+                "id": obj.property.id,
+                "pkid": str(obj.property.pkid),
+                "name": obj.property.name,
+                "property_type": obj.property.property_type,
+                "city": obj.property.city,
+                "country": obj.property.country,
+            }
+        return None
 
 
 class PropertySerializer(serializers.ModelSerializer):
@@ -255,7 +267,7 @@ class PropertyManagerAssignmentSerializer(serializers.Serializer):
     """
 
     manager_ids = serializers.ListField(
-        child=serializers.UUIDField(),
+        child=serializers.IntegerField(),
         write_only=True,
         required=True,
         help_text="List of manager UUIDs to assign",
@@ -299,9 +311,7 @@ class PropertyManagerAddSerializer(serializers.Serializer):
     Serializer for adding a single manager to a property.
     """
 
-    manager_id = serializers.UUIDField(
-        required=True, help_text="UUID of the manager to add"
-    )
+    manager_id = serializers.IntegerField(required=True, help_text="PKID Field")
 
     def validate_manager_id(self, value):
         """Validate that the manager exists."""

@@ -27,7 +27,11 @@ from .services import (
     ManagerService,
     UnitService,
 )
-from .utils import StandardResultsSetPagination, UnitResultsSetPagination
+from .utils import (
+    StandardResultsSetPagination,
+    UnitResultsSetPagination,
+    OwnerResultsSetPagination,
+)
 from .serializers import (
     PropertyManagerAssignmentSerializer,
     PropertyManagerListSerializer,
@@ -45,7 +49,7 @@ class OwnerListCreateView(APIView):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.service = OwnerService()
-        self.paginator = StandardResultsSetPagination()
+        self.paginator = OwnerResultsSetPagination()
 
     def get(self, request):
         # Only superadmin can list all owners; others see only themselves
