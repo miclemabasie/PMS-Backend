@@ -40,6 +40,9 @@ class ManagerRepository(DjangoRepository[Manager]):
         # All other roles (tenant, etc.) get no access
         return qs.none()
 
+    def get_all(self):
+        return self.model_class.objects.all()
+
 
 class PropertyRepository(DjangoRepository[Property]):
     def __init__(self):
@@ -49,7 +52,9 @@ class PropertyRepository(DjangoRepository[Property]):
         return self.model_class.objects.filter(ownership_records__owner_id=owner_id)
 
     def find_by_manager(self, manager_id):
-        return self.model_class.objects.filter(managers__id=manager_id)
+        # return self.model_class.objects.filter(managers__id=manager_id)
+        print("running find by manager")
+        return Property.objects.filter(managers__id=manager_id)
 
 
 class PropertyOwnershipRepository(DjangoRepository[PropertyOwnership]):
@@ -91,17 +96,6 @@ class UnitRepository(DjangoRepository[Unit]):
 
         # All other roles (tenant, etc.) get no access
         return qs.none()
-
-
-class PropertyRepository(DjangoRepository[Property]):
-    def __init__(self):
-        super().__init__(Property)
-
-    def find_by_owner(self, owner_id):
-        return self.model_class.objects.filter(ownership_records__owner_id=owner_id)
-
-    def find_by_manager(self, manager_id):
-        return self.model_class.objects.filter(managers__id=manager_id)
 
 
 class PropertyOwnershipRepository(DjangoRepository[PropertyOwnership]):
