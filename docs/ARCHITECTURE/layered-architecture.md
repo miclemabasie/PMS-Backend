@@ -1,58 +1,53 @@
 
-# 🔐 Authentication & Authorization Flow
+# 🧱 Layered Architecture
 
-## JWT Lifecycle
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Djoser
-    participant JWT
-    participant DRF
-    participant Service
+The codebase follows a strict 4-layer pattern to keep business logic decoupled from frameworks.
 
-    Client->>Djoser: POST /api/v1/auth/users/ (Register)
-    Djoser-->>Client: 201 Created
-    Client->>Djoser: POST /api/v1/auth/jwt/create/ (Login)
-    Djoser-->>JWT: Generate Access + Refresh
-    JWT-->>Client: {access, refresh}
-    Client->>DRF: GET /api/v1/properties/ (Bearer <access>)
-    DRF->>JWT: Validate signature & expiry
-    JWT-->>DRF: Decode → User object
-    DRF->>Service: Execute request (user attached)
-    Service-->>DRF: Result
-    DRF-->>Client: 200 OK
-    Client->>Djoser: POST /api/v1/auth/jwt/refresh/ (Rotate)
-    Djoser-->>Client: New access token
-```
+## Layer Breakdown
+| Layer | Location | Responsibility |
+|-------|----------|----------------|
+| **API** | `apps/*/views.py`, `apps/*/serializers.py` | Request parsing, validation, routing, response formatting |
+| **Service** | `apps/*/services.py`, `apps/core/base_service.py` | Business rules, transactions, workflow orchestration |
+| **Repository** | `apps/*/repositories.py`, `apps/core/base_repository.py` | Data access, query building, role-based filtering |
+| **Model** | `apps/*/models.py` | Schema definition, constraints, signals, `__str__` |
 
-## Role Resolution
-1. **JWT Decodes** → extracts `user_id` from payload
-2. **DRF Auth** → attaches `request.user` (custom `User` model)
-3. **Profile Lookup** → system checks related profile:
-   - `OwnerProfile` → sees owned properties, creates leases
-   - `ManagerProfile` → sees assigned properties/units
-   - `TenantProfile` → sees own leases, submits maintenance
-   - `Vendor` → sees assigned maintenance requests
-   - `None` → receives empty querysets (default deny)
-
-## Permission Enforcement
-| Permission Class | Where Used | Behavior |
-|-----------------|------------|----------|
-| `IsAuthenticated` | All API endpoints | Requires valid JWT |
-| `IsOwnerOrManagerOrSuperAdmin` | Properties, Units | Filters to owned/managed |
-| `IsTenantOrReadOnly` | Leases, Maintenance | Tenants can read/create, owners manage |
-| `IsAdminOrReadOnly` | Templates, Broadcasts | Admin-only writes |
-
-## Token Settings (`settings/base.py`)
+## How It Works (Flow Example)
 ```python
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
-    "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": True,
-}
+# 1. API Layer (View)
+class PropertyViewSet(viewsets.ModelViewSet):
+    def perform_create(self, serializer):
+        service = PropertyService()
+        service.create(owner=self.request.user.owner_profile, **serializer.validated_data)
+
+# 2. Service Layer
+class PropertyService(BaseService):
+    @transaction.atomic
+    def create(self, owner, **data):
+        # Business validation
+        if data.get("starting_amount") <= 0:
+            raise ValidationError("Amount must be positive")
+        
+        # Delegate to repository
+        return self.repository.create(owner=owner, **data)
+
+# 3. Repository Layer
+class PropertyRepository(DjangoRepository[Property]):
+    def get_queryset(self, user):
+        if user.is_superuser: return Property.objects.all()
+        if hasattr(user, "owner_profile"): return Property.objects.filter(owners=user.owner_profile)
+        return Property.objects.none()
+
+# 4. Model Layer
+class Property(TimeStampedUUIDModel):
+    name = models.CharField(max_length=255)
+    # ... constraints, indexes, signals
 ```
 
-> 🔑 **Key Insight**: Permissions are enforced at **both** the view level (DRF) and repository level (query filtering) for defense-in-depth.
+## Why This Pattern?
+- 🔍 **Testability**: Mock `Repository` to unit-test `Service` without hitting DB
+- 🛡️ **Security**: Role filtering lives in `Repository`, not scattered across views
+- 🔄 **Maintainability**: Swap ORM or add caching without touching services/views
+- 📐 **Consistency**: All apps follow identical structure → faster onboarding
 
+> ⚠️ **Rule**: Never call `.objects.filter()` directly in views or serializers. Always go through `Service → Repository`.
 
