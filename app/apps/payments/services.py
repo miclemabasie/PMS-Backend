@@ -1,4 +1,5 @@
 import logging
+import uuid
 from decimal import Decimal
 from datetime import timedelta
 from django.utils import timezone
@@ -12,6 +13,7 @@ from .repositories import (
 )
 from .dummy_payment_processor import DummyPaymentProcessor
 from .models import PaymentPlan, Installment, RentalAgreement, Payment
+from typing import Optional
 
 
 logger = logging.getLogger(__name__)
