@@ -267,7 +267,7 @@ class PropertyManagerAssignmentSerializer(serializers.Serializer):
     """
 
     manager_ids = serializers.ListField(
-        child=serializers.UUIDField(),
+        child=serializers.IntegerField(),
         write_only=True,
         required=True,
         help_text="List of manager UUIDs to assign",
@@ -311,9 +311,7 @@ class PropertyManagerAddSerializer(serializers.Serializer):
     Serializer for adding a single manager to a property.
     """
 
-    manager_id = serializers.UUIDField(
-        required=True, help_text="UUID of the manager to add"
-    )
+    manager_id = serializers.IntegerField(required=True, help_text="PKID Field")
 
     def validate_manager_id(self, value):
         """Validate that the manager exists."""
