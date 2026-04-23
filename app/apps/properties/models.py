@@ -6,7 +6,8 @@ from apps.users.models import User
 from phonenumber_field.modelfields import PhoneNumberField
 from django.core.validators import MinValueValidator, MaxValueValidator
 from model_utils import FieldTracker
-from apps.payments.models import PaymentTerm
+
+# from apps.payments.models import PaymentTerm
 from django.urls import reverse
 from django.conf import settings
 
@@ -86,6 +87,12 @@ class Owner(TimeStampedUUIDModel):
 
     def __str__(self):
         return f"Owner: {self.user.get_full_name()}"
+
+    def save(self, *args, **kwargs):
+        # update the role of the user
+        self.user.role = "landlord"
+        self.user.save()
+        super().save()
 
 
 class Property(TimeStampedUUIDModel):
@@ -177,6 +184,8 @@ class PropertyImage(models.Model):
     image = models.ImageField(upload_to="properties/")
 
     def get_property_image_url(self):
+        if not self.image:
+            return None
         return f"{settings.DOMAIN}{self.image.url}"
 
 
@@ -276,15 +285,6 @@ class Unit(TimeStampedUUIDModel):
         max_digits=10,
         decimal_places=0,
         help_text=_("Default amount per payment interval (if no lease override)"),
-    )
-    default_payment_term = models.ForeignKey(
-        PaymentTerm,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="units",
-        verbose_name=_("Default payment term"),
-        help_text=_("Default interval for this unit (e.g., monthly, yearly)"),
     )
     default_security_deposit = models.DecimalField(
         _("Default security deposit (XAF)"),

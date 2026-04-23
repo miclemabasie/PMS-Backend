@@ -100,6 +100,15 @@ dump-db:
 restore-db:
 	@echo "Usage: make restore-db FILE=backup.sql"
 	docker compose exec -T postgres-db psql --username=$(PG_USER) --dbname=$(PG_DB) < $(FILE)
+
+
+load-test-data:
+	docker compose exec api python manage.py populate_test_data
+	
+
+load-test-data-full:
+	docker compose exec api python manage.py populate_test_data_full --properties 20 --units-per-property 15 --tenants 100 --agreements 80 --payments-per-agreement 6
+	
 populate_test_data:
 	docker compose exec api python manage.py populate_test_data --count 100 --seed 123
 

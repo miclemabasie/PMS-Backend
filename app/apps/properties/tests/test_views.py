@@ -45,11 +45,18 @@ class TestOwnerViews:
         """Test that user can create owner profile for themselves"""
         url = reverse("properties:owner-list")
         data = {
+            "user_id": authenticated_client.handler._force_user.pkid,
             "preferred_payout_method": "bank_transfer",
-            "bank_account_name": "Test Account",
+            "mobile_money_number": "+237672345678",
+            "bank_account_name": "John Doe",
+            "bank_name": "Société Générale",
+            "bank_account_number": "12345678901",
+            "tax_id": "P123456789",
         }
 
-        response = authenticated_client.post(url, data)
+        response = authenticated_client.post(url, data, format="json")
+
+        print("### this is the response", response.data)
 
         assert response.status_code == status.HTTP_201_CREATED
         assert (
@@ -60,17 +67,17 @@ class TestOwnerViews:
     def test_get_own_owner_detail(self, authenticated_client, db):
         """Test that user can view their own owner profile"""
         owner = OwnerFactory.create(user=authenticated_client.handler._force_user)
-        url = reverse("properties:owner-detail", kwargs={"pk": owner.pkid})
+        url = reverse("properties:owner-detail", kwargs={"pk": owner.id})
 
         response = authenticated_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["pkid"] == str(owner.pkid)
+        assert str(response.data["pkid"]) == str(owner.pkid)
 
     def test_cannot_view_other_owner_detail(self, authenticated_client, db):
         """Test that user cannot view another user's owner profile"""
         other_owner = OwnerFactory.create()
-        url = reverse("properties:owner-detail", kwargs={"pk": other_owner.pkid})
+        url = reverse("properties:owner-detail", kwargs={"pk": other_owner.id})
 
         response = authenticated_client.get(url)
 
@@ -115,18 +122,18 @@ class TestPropertyViews:
         """Test that owner can view their property detail"""
         owner = OwnerFactory.create(user=authenticated_client.handler._force_user)
         property = PropertyFactory.create(owners=[owner])
-        url = reverse("properties:property-detail", kwargs={"pk": property.pkid})
+        url = reverse("properties:property-detail", kwargs={"pk": property.id})
 
         response = authenticated_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["pkid"] == str(property.pkid)
+        assert str(response.data["pkid"]) == str(property.pkid)
 
     def test_update_property_as_owner(self, authenticated_client, db):
         """Test that owner can update their property"""
         owner = OwnerFactory.create(user=authenticated_client.handler._force_user)
         property = PropertyFactory.create(owners=[owner])
-        url = reverse("properties:property-detail", kwargs={"pk": property.pkid})
+        url = reverse("properties:property-detail", kwargs={"pk": property.id})
         data = {"name": "Updated Property Name"}
 
         response = authenticated_client.patch(url, data)
@@ -138,18 +145,18 @@ class TestPropertyViews:
         """Test that user cannot view another owner's property"""
         other_owner = OwnerFactory.create()
         property = PropertyFactory.create(owners=[other_owner])
-        url = reverse("properties:property-detail", kwargs={"pk": property.pkid})
+        url = reverse("properties:property-detail", kwargs={"pk": property.id})
 
         response = authenticated_client.get(url)
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert str(response.status_code) == str(status.HTTP_403_FORBIDDEN)
 
     def test_delete_property_with_units_forbidden(self, authenticated_client, db):
         """Test cannot delete property with units"""
         owner = OwnerFactory.create(user=authenticated_client.handler._force_user)
         property = PropertyFactory.create(owners=[owner])
         UnitFactory.create(property=property)
-        url = reverse("properties:property-detail", kwargs={"pk": property.pkid})
+        url = reverse("properties:property-detail", kwargs={"pk": property.id})
 
         response = authenticated_client.delete(url)
 
@@ -169,6 +176,10 @@ class TestUnitViews:
         url = reverse("properties:unit-list")
 
         response = authenticated_client.get(url, {"property": str(property.pkid)})
+
+        print("########## here is the response ", response.data)
+        print(hasattr(authenticated_client.handler._force_user, "owner_profile"))
+        print("User role", authenticated_client.handler._force_user.role)
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["results"]) >= 3
@@ -212,7 +223,7 @@ class TestUnitViews:
         owner = OwnerFactory.create(user=authenticated_client.handler._force_user)
         property = PropertyFactory.create(owners=[owner])
         unit = UnitFactory.create(property=property, status="occupied")
-        url = reverse("properties:unit-detail", kwargs={"pk": unit.pkid})
+        url = reverse("properties:unit-detail", kwargs={"pk": unit.id})
 
         response = authenticated_client.delete(url)
 
@@ -258,7 +269,7 @@ class TestPropertyManagerAssignmentViews:
         property = PropertyFactory.create(owners=[owner])
         manager = ManagerFactory.create()
         property.managers.add(manager)
-        url = reverse("properties:property-managers-list", kwargs={"pk": property.pkid})
+        url = reverse("properties:property-managers-list", kwargs={"pk": property.id})
 
         response = authenticated_client.get(url)
 
@@ -271,7 +282,7 @@ class TestPropertyManagerAssignmentViews:
         property = PropertyFactory.create(owners=[owner])
         manager1 = ManagerFactory.create()
         manager2 = ManagerFactory.create()
-        url = reverse("properties:property-managers-add", kwargs={"pk": property.pkid})
+        url = reverse("properties:property-managers-add", kwargs={"pk": property.id})
         data = {"manager_ids": [str(manager1.pkid), str(manager2.pkid)]}
 
         response = authenticated_client.post(url, data)
@@ -285,9 +296,7 @@ class TestPropertyManagerAssignmentViews:
         property = PropertyFactory.create(owners=[owner])
         manager = ManagerFactory.create()
         property.managers.add(manager)
-        url = reverse(
-            "properties:property-managers-remove", kwargs={"pk": property.pkid}
-        )
+        url = reverse("properties:property-managers-remove", kwargs={"pk": property.id})
         data = {"manager_ids": [str(manager.pkid)]}
 
         response = authenticated_client.post(url, data)
@@ -301,7 +310,7 @@ class TestPropertyManagerAssignmentViews:
         other_property = PropertyFactory.create(owners=[other_owner])
         manager = ManagerFactory.create()
         url = reverse(
-            "properties:property-managers-add", kwargs={"pk": other_property.pkid}
+            "properties:property-managers-add", kwargs={"pk": other_property.id}
         )
         data = {"manager_ids": [str(manager.pkid)]}
 
@@ -319,7 +328,7 @@ class TestPropertyImageViews:
         owner = OwnerFactory.create(user=authenticated_client.handler._force_user)
         property = PropertyFactory.create(owners=[owner])
         PropertyImageFactory.create_batch(3, property=property)
-        url = reverse("properties:property-images-list", kwargs={"pk": property.pkid})
+        url = reverse("properties:property-images-list", kwargs={"pk": property.id})
 
         response = authenticated_client.get(url)
 
@@ -337,7 +346,7 @@ class TestUnitImageViews:
         property = PropertyFactory.create(owners=[owner])
         unit = UnitFactory.create(property=property)
         UnitImageFactory.create_batch(2, unit=unit)
-        url = reverse("properties:unit-images-list", kwargs={"pk": unit.pkid})
+        url = reverse("properties:unit-images-list", kwargs={"pk": unit.id})
 
         response = authenticated_client.get(url)
 

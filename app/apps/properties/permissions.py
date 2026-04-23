@@ -48,10 +48,15 @@ class IsTenantOrReadOnly(BasePermission):
             and obj.tenant == request.user.tenant_profile
         )
 
+    def has_permission(self, request, view):
+        return request.method in ["GET", "HEAD", "OPTIONS"] or hasattr(
+            request.user, "tenant_profile"
+        )
+
 
 class CanManageProperty(BasePermission):
     def has_permission(self, request, view):
         user = request.user
         if user.is_superuser:
             return True
-        return user.role in ["superadmin", "landlord", "propertymanager"]
+        return user.role in ["superadmin", "landlord", "manager"]

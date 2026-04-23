@@ -13,31 +13,6 @@ from apps.properties.models import Unit
 # Create your models here.
 
 
-class PaymentTerm(TimeStampedUUIDModel):
-    """
-    Defines a payment schedule interval.
-    Examples: Monthly (1 month), Quarterly (3 months), Yearly (12 months).
-    """
-
-    name = models.CharField(_("Name"), max_length=50, unique=True)
-    interval_months = models.PositiveSmallIntegerField(
-        _("Interval (months)"),
-        validators=[MinValueValidator(1)],
-        help_text=_(
-            "Number of months between payments (1 = monthly, 3 = quarterly, etc.)"
-        ),
-    )
-    description = models.TextField(_("Description"), blank=True)
-
-    class Meta:
-        verbose_name = _("Payment term")
-        verbose_name_plural = _("Payment terms")
-        ordering = ["interval_months"]
-
-    def __str__(self):
-        return self.name
-
-
 class PaymentPlan(TimeStampedUUIDModel):
     """
     Defines payment rules for a unit.
@@ -64,7 +39,7 @@ class PaymentPlan(TimeStampedUUIDModel):
             "List of integers, e.g., [1,3,6]. Empty means any up to max_months."
         ),
     )
-    max_months = models.PositiveSmallIntegerField(
+    max_months = models.PositiveIntegerField(
         _("Maximum months per payment"), default=12
     )
 
@@ -78,7 +53,7 @@ class PaymentPlan(TimeStampedUUIDModel):
 
     # Common fields
     allow_custom_amount = models.BooleanField(_("Allow custom amount"), default=False)
-    amount_step = models.PositiveSmallIntegerField(
+    amount_step = models.PositiveIntegerField(
         _("Amount step (XAF)"),
         default=10,
         help_text=_("Payment amounts must be multiples of this value."),
@@ -112,7 +87,7 @@ class Installment(models.Model):
         validators=[MinValueValidator(0), MaxValueValidator(100)],
     )
     due_date = models.DateField(_("Due date"), null=True, blank=True)
-    order_index = models.PositiveSmallIntegerField(_("Order"))
+    order_index = models.PositiveIntegerField(_("Order"))
 
     class Meta:
         ordering = ["order_index"]

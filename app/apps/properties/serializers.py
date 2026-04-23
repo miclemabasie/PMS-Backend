@@ -11,8 +11,6 @@ from .models import (
 )
 from apps.users.api.serializers import UserMinimalSerializer
 from apps.users.models import User
-from apps.payments.serializers import PaymentSerializer, PaymentTermSerializer
-from apps.payments.models import PaymentTerm
 from .utils import calculatate_occupancy_rate
 
 
@@ -108,16 +106,13 @@ class UnitSerializer(serializers.ModelSerializer):
     property_id = serializers.PrimaryKeyRelatedField(
         queryset=Property.objects.all(), source="property", write_only=True
     )
-    default_payment_term_detail = PaymentTermSerializer(
-        source="default_payment_term", read_only=True
-    )
-    default_payment_term_id = serializers.PrimaryKeyRelatedField(
-        queryset=PaymentTerm.objects.all(),
-        source="default_payment_term",
-        write_only=True,
-        required=False,
-        allow_null=True,
-    )
+    # default_payment_term_id = serializers.PrimaryKeyRelatedField(
+    #     queryset=PaymentTerm.objects.all(),
+    #     source="default_payment_term",
+    #     write_only=True,
+    #     required=False,
+    #     allow_null=True,
+    # )
     unit_images = UnitImageSerializer(many=True, read_only=True)
     images = serializers.ListField(
         child=serializers.ImageField(),
@@ -140,9 +135,9 @@ class UnitSerializer(serializers.ModelSerializer):
             "bedrooms",
             "bathrooms",
             "default_rent_amount",
-            "default_payment_term",
-            "default_payment_term_detail",
-            "default_payment_term_id",
+            # "default_payment_term",
+            # "default_payment_term_detail",
+            # "default_payment_term_id",
             "default_security_deposit",
             "status",
             "amenities",
@@ -168,7 +163,7 @@ class UnitSerializer(serializers.ModelSerializer):
                 "name": obj.property.name,
                 "property_type": obj.property.property_type,
                 "city": obj.property.city,
-                "country": obj.property.country,
+                "country": obj.property.country.name,
             }
         return None
 

@@ -33,7 +33,13 @@ class UserFactory(DjangoModelFactory):
     last_name = Faker("last_name")
     password = factory.PostGenerationMethodCall("set_password", "SecurePass123!")
     is_active = True
-    role = Role.USER
+
+    @factory.post_generation
+    def role_override(obj, create, extracted, **kwargs):
+        if extracted is not None:
+            obj.role = extracted
+            if create:
+                obj.save()
 
     # After creating User, Profile is auto-created via signal
     # No need for explicit profile creation

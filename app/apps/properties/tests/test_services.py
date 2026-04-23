@@ -153,7 +153,7 @@ class TestPropertyService:
         manager2 = ManagerFactory.create()
 
         updated = service.add_managers(
-            str(property.pkid), [str(manager1.pkid), str(manager2.pkid)]
+            str(property.id), [str(manager1.pkid), str(manager2.pkid)]
         )
 
         assert updated.managers.count() == 2
@@ -164,7 +164,7 @@ class TestPropertyService:
         manager = ManagerFactory.create()
         property.managers.add(manager)
 
-        updated = service.remove_managers(str(property.pkid), [str(manager.pkid)])
+        updated = service.remove_managers(str(property.id), [str(manager.pkid)])
 
         assert updated.managers.count() == 0
 
@@ -175,7 +175,7 @@ class TestPropertyService:
         manager2 = ManagerFactory.create()
         property.managers.add(manager1)
 
-        updated = service.replace_managers(str(property.pkid), [str(manager2.pkid)])
+        updated = service.replace_managers(str(property.id), [str(manager2.pkid)])
 
         assert updated.managers.count() == 1
         assert updated.managers.first() == manager2
@@ -184,7 +184,7 @@ class TestPropertyService:
         """Test updating property"""
         property = PropertyFactory.create(name="Original")
 
-        updated = service.update_property(str(property.pkid), {"name": "Updated"})
+        updated = service.update_property(str(property.id), {"name": "Updated"})
 
         assert updated.name == "Updated"
 
@@ -218,7 +218,7 @@ class TestUnitService:
 
         results = service.get_units_for_property(property.pkid)
 
-        assert results.count() == 4
+        assert len(results) == 4
 
     def test_get_available_units(self, db, service):
         """Test getting available (vacant) units"""
@@ -229,13 +229,13 @@ class TestUnitService:
 
         results = service.get_available_units()
 
-        assert results.count() == 2
+        assert len(results) == 2
 
     def test_update_unit_status(self, db, service):
         """Test updating unit status"""
         unit = UnitFactory.create(status="vacant")
 
-        updated = service.update_unit_status(unit.pkid, "occupied")
+        updated = service.update_unit_status(unit.id, "occupied")
 
         assert updated.status == "occupied"
 

@@ -17,10 +17,9 @@ from apps.properties.models import (
     UnitType,
 )
 from apps.users.tests.factories import UserFactory
-from apps.payments.tests.factories import PaymentTermFactory
 from factory.django import DjangoModelFactory
 from factory.faker import Faker
-
+from apps.users.models import Role
 
 # ============================================================
 # Owner Factories
@@ -33,7 +32,7 @@ class OwnerFactory(DjangoModelFactory):
     class Meta:
         model = Owner
 
-    user = factory.SubFactory(UserFactory, role="landlord")
+    user = factory.SubFactory(UserFactory, role=Role.Owner)
     preferred_payout_method = "bank_transfer"
     mobile_money_number = "+237600000000"
     bank_account_name = Faker("name")
@@ -164,7 +163,6 @@ class UnitFactory(DjangoModelFactory):
     bedrooms = 1
     bathrooms = 1
     default_rent_amount = Decimal("75000")
-    default_payment_term = factory.SubFactory(PaymentTermFactory)
     default_security_deposit = Decimal("150000")
     status = "vacant"
     amenities = ["ac", "balcony"]

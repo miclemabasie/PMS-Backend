@@ -277,7 +277,6 @@ class UnitAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     "default_rent_amount",
-                    "default_payment_term",
                     "default_security_deposit",
                 )
             },
