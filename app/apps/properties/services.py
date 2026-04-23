@@ -329,6 +329,21 @@ class UnitService(BaseService[Unit]):
         """
         return self.repository.find_by_user(user, status=status)
 
+    def user_can_manage_unit(self, user, unit_id) -> bool:
+        """Check if user is landlord (owner) or manager of the property containing the unit."""
+        unit = self.get_by_id(unit_id)
+        if not unit:
+            return False
+        if user.is_superuser:
+            return True
+        if hasattr(user, "owner_profile"):
+            return unit.property.owners.filter(pkid=user.owner_profile.pkid).exists()
+        if hasattr(user, "manager_profile"):
+            return unit.property.managers.filter(
+                pkid=user.manager_profile.pkid
+            ).exists()
+        return False
+
 
 class PropertyOwnershipService(BaseService[PropertyOwnership]):
     def __init__(self):

@@ -12,6 +12,7 @@ from .models import (
 from apps.users.api.serializers import UserMinimalSerializer
 from apps.users.models import User
 from .utils import calculatate_occupancy_rate
+from apps.payments.models import PaymentPlan
 
 
 class PropertyImageSerializer(serializers.ModelSerializer):
@@ -106,13 +107,12 @@ class UnitSerializer(serializers.ModelSerializer):
     property_id = serializers.PrimaryKeyRelatedField(
         queryset=Property.objects.all(), source="property", write_only=True
     )
-    # default_payment_term_id = serializers.PrimaryKeyRelatedField(
-    #     queryset=PaymentTerm.objects.all(),
-    #     source="default_payment_term",
-    #     write_only=True,
-    #     required=False,
-    #     allow_null=True,
-    # )
+    default_payment_plan = serializers.PrimaryKeyRelatedField(
+        queryset=PaymentPlan.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text="Payment plan for this unit",
+    )
     unit_images = UnitImageSerializer(many=True, read_only=True)
     images = serializers.ListField(
         child=serializers.ImageField(),
@@ -135,9 +135,7 @@ class UnitSerializer(serializers.ModelSerializer):
             "bedrooms",
             "bathrooms",
             "default_rent_amount",
-            # "default_payment_term",
-            # "default_payment_term_detail",
-            # "default_payment_term_id",
+            "default_payment_plan",  # add this line
             "default_security_deposit",
             "status",
             "amenities",
@@ -153,19 +151,6 @@ class UnitSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
-
-    def get_property_detail(self, obj):
-        """Return minimal property info to avoid circular reference"""
-        if obj.property:
-            return {
-                "id": obj.property.id,
-                "pkid": str(obj.property.pkid),
-                "name": obj.property.name,
-                "property_type": obj.property.property_type,
-                "city": obj.property.city,
-                "country": obj.property.country.name,
-            }
-        return None
 
 
 class PropertySerializer(serializers.ModelSerializer):

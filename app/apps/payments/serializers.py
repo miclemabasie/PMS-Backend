@@ -17,7 +17,7 @@ class PaymentPlanSerializer(serializers.ModelSerializer):
 
 
 class RentalAgreementSerializer(serializers.ModelSerializer):
-    unit_name = serializers.CharField(source="unit.name", read_only=True)
+    unit_name = serializers.SerializerMethodField(read_only=True)
     tenant_name = serializers.CharField(
         source="tenant.user.get_full_name", read_only=True
     )
@@ -28,6 +28,13 @@ class RentalAgreementSerializer(serializers.ModelSerializer):
     class Meta:
         model = RentalAgreement
         fields = "__all__"
+
+    def get_unit_name(self, obj):
+        return (
+            f"{obj.unit.property.name} - {obj.unit.unit_type} - {obj.unit.unit_number}"
+            if obj.unit.unit_number
+            else f"{obj.unit.property.name} - {obj.unit.unit_type}"
+        )
 
 
 class PaymentSerializer(serializers.ModelSerializer):

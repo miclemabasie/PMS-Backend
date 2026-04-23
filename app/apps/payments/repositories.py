@@ -20,6 +20,9 @@ class PaymentPlanRepository(DjangoRepository[PaymentPlan]):
             return None
 
 
+# apps/agreements/repositories.py
+
+
 class InstallmentRepository(DjangoRepository[Installment]):
     def __init__(self):
         super().__init__(Installment)
@@ -30,6 +33,17 @@ class InstallmentRepository(DjangoRepository[Installment]):
                 "order_index"
             )
         )
+
+    def get_by_plan_and_order(
+        self, plan_id: str, order_index: int
+    ) -> Optional[Installment]:
+        """Return installment for a given plan and order index, or None."""
+        try:
+            return self.model_class.objects.get(
+                payment_plan_id=plan_id, order_index=order_index
+            )
+        except self.model_class.DoesNotExist:
+            return None
 
 
 class RentalAgreementRepository(DjangoRepository[RentalAgreement]):

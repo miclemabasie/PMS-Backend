@@ -286,12 +286,25 @@ class Unit(TimeStampedUUIDModel):
         decimal_places=0,
         help_text=_("Default amount per payment interval (if no lease override)"),
     )
+    yearly_rent = models.DecimalField(
+        _("Year rented"), max_digits=10, decimal_places=0, blank=True, null=True
+    )
+    monthly_rent = models.DecimalField(
+        _("Monthly rent (XAF)"),
+        max_digits=10,
+        decimal_places=0,
+        blank=True,
+        null=True,
+    )
     default_security_deposit = models.DecimalField(
         _("Default security deposit (XAF)"),
         max_digits=10,
         decimal_places=0,
         blank=True,
         null=True,
+    )
+    default_payment_plan = models.ForeignKey(
+        "payments.PaymentPlan", null=True, blank=True, on_delete=models.SET_NULL
     )
     status = models.CharField(
         _("Status"),

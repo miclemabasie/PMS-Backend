@@ -7,8 +7,6 @@ from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 from apps.core.models import TimeStampedUUIDModel
 from apps.users.models import User
-from apps.tenants.models import Tenant
-from apps.properties.models import Unit
 
 # Create your models here.
 
@@ -103,9 +101,11 @@ class RentalAgreement(TimeStampedUUIDModel):
     Tracks coverage for monthly mode or installment status for yearly mode.
     """
 
-    unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name="agreements")
+    unit = models.ForeignKey(
+        "properties.Unit", on_delete=models.CASCADE, related_name="agreements"
+    )
     tenant = models.ForeignKey(
-        Tenant, on_delete=models.CASCADE, related_name="agreements"
+        "tenants.Tenant", on_delete=models.CASCADE, related_name="agreements"
     )
     payment_plan = models.ForeignKey(PaymentPlan, on_delete=models.PROTECT)
     start_date = models.DateField(_("Start date"), auto_now_add=True)
