@@ -235,7 +235,13 @@ class UnitListCreateView(APIView):
             from .services import PropertyService
 
             prop_service = PropertyService()
-            property = units.first().property
+            property = None
+            if units.exists():
+                property = units.first().property
+            else:
+                # stop the entire execution of the view
+                return Response({"detail": "No units found"}, status=404)
+
             if not property:
                 return Response({"detail": "Property not found"}, status=404)
 

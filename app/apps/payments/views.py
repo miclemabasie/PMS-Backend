@@ -171,6 +171,7 @@ class MakePaymentView(APIView):
         serializer = MakePaymentSerializer(data=request.data)
         if serializer.is_valid():
             try:
+                print("### got to the start")
                 payment = self.service.make_payment(
                     agreement=agreement,
                     amount=serializer.validated_data["amount"],
@@ -178,6 +179,7 @@ class MakePaymentView(APIView):
                     phone_number=serializer.validated_data.get("phone_number"),
                     provider=serializer.validated_data.get("provider"),
                 )
+                print("### made the payment")
                 return Response(
                     PaymentSerializer(payment).data, status=status.HTTP_201_CREATED
                 )

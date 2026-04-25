@@ -56,17 +56,20 @@ def get_total_number_of_properties_added_in_the_last_30_days_by_owner(property_i
 
 
 def get_statistics(data):
-    property_id = data[0].get("id")
-    return {
-        "occupancy_rate": calculatate_occupancy_rate(property_id),
-        "owner_occupancy_rate": calculate_owner_occupancy_rate(property_id),
-        "total_properties": get_total_properties_for_owner(property_id),
-        "total_units": get_total_units_for_property(property_id),
-        "monthly_revenue": get_monthly_revenue(property_id),
-        "last_added_properties": get_total_number_of_properties_added_in_the_last_30_days_by_owner(
-            property_id
-        ),
-    }
+
+    if data:
+        property_id = data[0].get("id")
+
+        return {
+            "occupancy_rate": calculatate_occupancy_rate(property_id),
+            "owner_occupancy_rate": calculate_owner_occupancy_rate(property_id),
+            "total_properties": get_total_properties_for_owner(property_id),
+            "total_units": get_total_units_for_property(property_id),
+            "monthly_revenue": get_monthly_revenue(property_id),
+            "last_added_properties": get_total_number_of_properties_added_in_the_last_30_days_by_owner(
+                property_id
+            ),
+        }
 
 
 class StandardResultsSetPagination(PageNumberPagination):

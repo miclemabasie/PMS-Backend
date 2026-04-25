@@ -137,6 +137,8 @@ class UnitSerializer(serializers.ModelSerializer):
             "default_rent_amount",
             "default_payment_plan",  # add this line
             "default_security_deposit",
+            "yearly_rent",
+            "monthly_rent",
             "status",
             "amenities",
             "amenities_fr",
@@ -151,6 +153,14 @@ class UnitSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
+
+    def get_property_detail(self, obj):
+
+        return {
+            "id": obj.property.id,
+            "name": obj.property.name,
+            "property_type": obj.property.property_type,
+        }
 
 
 class PropertySerializer(serializers.ModelSerializer):
@@ -239,6 +249,9 @@ class PropertySerializer(serializers.ModelSerializer):
 
     def get_units(self, obj):
         return obj.units
+
+    def get_property_images(self, obj):
+        return obj.property_images
 
 
 class PropertyManagerAssignmentSerializer(serializers.Serializer):

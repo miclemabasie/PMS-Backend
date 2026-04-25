@@ -216,9 +216,9 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         plan = agreement.payment_plan
         amount = Decimal(str(amount))
 
-        # Validate amount step
-        if amount % plan.amount_step != 0:
-            raise ValueError(f"Amount must be a multiple of {plan.amount_step} XAF.")
+        # # Validate amount step
+        # if amount % plan.amount_step != 0:
+        #     raise ValueError(f"Amount must be a multiple of {plan.amount_step} XAF.")
 
         # Dummy payment processing
         processor = DummyPaymentProcessor()
@@ -276,6 +276,8 @@ class RentalAgreementService(BaseService[RentalAgreement]):
             if next_idx is None:
                 raise ValueError("This agreement is already fully paid.")
 
+            print("@@@@ starting payments", installments)
+
             current_installment = installments[next_idx]
             due = Decimal(current_installment["remaining"])
 
@@ -284,6 +286,7 @@ class RentalAgreementService(BaseService[RentalAgreement]):
                 raise ValueError(
                     f"Custom amounts not allowed. You must pay the full due amount of {due} XAF."
                 )
+            print("@@@@ starting payments")
 
             # Also, if custom allowed, ensure amount does not exceed total remaining
             total_remaining = Decimal(status["total_remaining"])
@@ -296,6 +299,8 @@ class RentalAgreementService(BaseService[RentalAgreement]):
             remaining = amount
             total_paid = Decimal(status["total_paid"])
             total_remaining = Decimal(status["total_remaining"])
+
+            print("@@@@ starting payments")
 
             for idx, inst in enumerate(installments):
                 if remaining <= 0:
