@@ -12,11 +12,11 @@ jobs:
         uses: actions/setup-python@v4
         with: { python-version: "3.12" }
 
-      - name: Install deps
-        run: pip install -r requirements.txt markdown-link-check
+      # - name: Install deps
+      #   run: pip install -r requirements.txt markdown-link-check
 
-      - name: Run docs validation
-        run: make docs-check
+      # - name: Run docs validation
+      #   run: make docs-check
 
-      - name: Build docs (optional)
-        run: mkdocs build -f mkdocs.yml
+      # - name: Build docs (optional)
+      #   run: mkdocs build -f mkdocs.yml

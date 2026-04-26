@@ -1,12 +1,14 @@
 # ⚡ Async Task Architecture (Celery + Redis)
 
 ## Why Celery?
+
 - Non-blocking email/SMS delivery
 - Scheduled cleanup & report generation
 - Heavy computations (translation, PDF export)
 - Retry logic with exponential backoff
 
 ## Component Setup
+
 ```mermaid
 graph LR
     Django[app/pms/celery.py] -->|Sends| Redis[(Redis Broker)]
@@ -17,6 +19,7 @@ graph LR
 ```
 
 ## Task Structure
+
 ```python
 # apps/notifications/tasks.py
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
@@ -33,14 +36,16 @@ def send_broadcast_email(self, broadcast_id: str, recipient_emails: list[str]):
 ```
 
 ## Common Tasks
-| Task Name | Trigger | Purpose |
-|-----------|---------|---------|
-| `send_broadcast_email` | API call / Admin | Bulk email delivery |
-| `send_notification` | Signal / Service | Single user alert |
-| `cleanup_expired_tokens` | Beat (Daily) | Remove stale JWT refresh tokens |
-| `sync_translations` | Beat (Weekly) | Compile `.po` → `.mo` files |
+
+| Task Name                | Trigger          | Purpose                         |
+| ------------------------ | ---------------- | ------------------------------- |
+| `send_broadcast_email`   | API call / Admin | Bulk email delivery             |
+| `send_notification`      | Signal / Service | Single user alert               |
+| `cleanup_expired_tokens` | Beat (Daily)     | Remove stale JWT refresh tokens |
+| `sync_translations`      | Beat (Weekly)    | Compile `.po` → `.mo` files     |
 
 ## Worker Configuration
+
 - **Dev**: `celery -A pms.celery worker -l info --pool=solo`
 - **Prod**: `celery -A pms.celery worker -l info -c 4` (concurrency)
 - **Beat**: `celery -A pms.celery beat -l info` (scheduled tasks)

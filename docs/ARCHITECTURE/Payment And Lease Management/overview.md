@@ -83,6 +83,7 @@ erDiagram
 ```
 
 **Key relationships:**
+
 - A `Unit` can have many `RentalAgreement`s over time, but only one active at a time.
 - A `RentalAgreement` uses exactly one `PaymentPlan` (the one active on the unit at creation time).
 - `PaymentTerm` is a simple lookup table for allowed monthly terms (1,3,6,12). The `allowed_monthly_terms` in `PaymentPlan` references these IDs or just stores integers directly. I’ve shown it as JSON for simplicity.
@@ -98,18 +99,21 @@ lets walk through scenarios from both **landlord** and **tenant** perspectives, 
 ### Scenario 1: Landlord wants only 6‑month prepayment, but tenant can only pay 3 months now
 
 **Landlord setup:**
+
 - Unit monthly rent = 100,000 XAF.
 - Payment plan: `mode=monthly`, `allowed_monthly_terms=[6]` (only 6‑month blocks allowed), `allow_custom_amount=false`.
 
 **Tenant situation:** Has only 300,000 XAF now, needs to move in.
 
 **What happens:**
+
 - System shows tenant only “Pay 6 months = 600,000 XAF”. Tenant cannot pay 3 months because it’s not allowed.
 - Tenant contacts landlord. Landlord can:
   - Temporarily edit the plan to `allowed_monthly_terms=[3,6]` for this unit (or for this specific agreement if we add an override field). Then tenant pays 3 months.
   - Or landlord creates a new plan “3‑month special” and assigns it to the unit just for this tenant.
 
 **System behaviour after override:**
+
 - Tenant pays 300,000 → coverage_end_date = today + 3 months.
 - After 3 months, tenant must pay another 300,000 to reach 6 months (if landlord re‑restricts to 6‑month blocks). Or landlord leaves 3‑month option open.
 
@@ -120,12 +124,14 @@ lets walk through scenarios from both **landlord** and **tenant** perspectives, 
 ### Scenario 2: Tenant overpays for yearly installment (pays full year at once, but plan had 60/40 split)
 
 **Landlord setup:**
+
 - Yearly rent = 360,000 XAF.
 - Plan: installments = [60%, 40%], `allow_custom_amount=true`.
 
 **Tenant action:** Pays 360,000 in one go.
 
 **System logic:**
+
 - First, system checks if amount ≤ total yearly rent (360k). Yes.
 - It then applies the payment to installments in order:
   - Installment 1 (60% = 216,000) fully paid. Remaining amount = 360k - 216k = 144k.
@@ -135,6 +141,7 @@ lets walk through scenarios from both **landlord** and **tenant** perspectives, 
 - Receipt shows full payment.
 
 **If tenant overpays (e.g., 400,000):**
+
 - System rejects with message: “Amount exceeds total yearly rent (360,000). Please enter a lower amount.”
 
 ---
@@ -158,6 +165,7 @@ lets walk through scenarios from both **landlord** and **tenant** perspectives, 
 **Current state:** Coverage ended 3 days ago. Unit status = vacant, but tenant is still living there (common in Cameroon).
 
 **System logic:**
+
 - When tenant attempts to pay, system detects that `coverage_end_date < today`.
 - Instead of rejecting, system can:
   - **Option A (strict):** Require landlord to mark unit as occupied again or create a new agreement. But that’s extra work.
@@ -188,6 +196,7 @@ We choose **Option B** for Cameroon. The system should not penalise late payment
 **Landlord action:** On 1st April, increases monthly rent from 150k to 180k. Tenant had paid for April and May on 1st March (2 months prepaid).
 
 **System logic:**
+
 - The coverage for April and May was already paid at the old rate. The rent increase applies only to **future payments** (starting from June).
 - When tenant pays again in June, they pay the new rate.
 - No refund or extra charge for already covered months.
@@ -203,6 +212,7 @@ We choose **Option B** for Cameroon. The system should not penalise late payment
 **Tenant has only 150k.**
 
 **What can tenant do?** They cannot pay 150k because custom amounts are disabled. They must contact landlord. Landlord can:
+
 - Temporarily set `allow_custom_amount=true` for this agreement (via an override flag on `RentalAgreement`).
 - Or landlord creates a new payment plan with a smaller first installment (e.g., 50%) and reassigns to the unit.
 
@@ -215,6 +225,7 @@ We choose **Option B** for Cameroon. The system should not penalise late payment
 **New landlord situation:** New owner takes over. The existing tenant has paid for another 6 months.
 
 **System behaviour:**
+
 - The `RentalAgreement` remains attached to the unit. When unit ownership changes (we need a `PropertyOwnership` model, which you already have), the agreement stays with the unit.
 - New landlord inherits the agreement and the coverage. They cannot terminate without refunding the tenant.
 - If new landlord wants tenant out, they must follow the refund process: calculate unused months (6), refund that amount to tenant, then mark agreement as terminated.
@@ -228,6 +239,7 @@ We choose **Option B** for Cameroon. The system should not penalise late payment
 **Requirement:** Tenants often split payments across different channels.
 
 **System design:**
+
 - Allow a single `Payment` record to have multiple `PaymentSplit` child records, each with its own method and amount.
 - Or, more simply, allow multiple payments on the same day for the same agreement. The system sums them and updates coverage/installments once the total reaches a threshold.
 
@@ -246,6 +258,7 @@ We’ll adopt the independent payment approach.
 **Tenant action on 1 Nov:** Pays 300k for next year.
 
 **System logic:**
+
 - Current agreement is still active (until 31 Dec). The system should not allow a second active agreement for the same unit and tenant.
 - Instead, tenant is paying for the **next period**. We need to either:
   - Create a new agreement with start_date = 1 Jan (future), and accept payment now. The payment is recorded against the future agreement.
@@ -271,6 +284,7 @@ stateDiagram-v2
 ```
 
 **Notes:**
+
 - `Pending` state is optional – we can create agreement only on successful payment.
 - `Expired` is not final – tenant can reactivate by paying.
 - `Terminated` is final – landlord has refunded and unit is vacant.
@@ -279,29 +293,29 @@ stateDiagram-v2
 
 ## 5. Key Decision Points
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Agreement creation | On first successful payment | Avoids abandoned drafts |
-| Coverage restart after expiry | Extend from today, ignore gap | Matches Cameroon reality |
-| Overpayments | Reject | Avoids confusion |
-| Custom amount step | 10 XAF | Mobile money rounding |
-| Landlord plan change effect | Does not affect active agreements | Contract stability |
-| Partial payments in monthly mode | Allowed only if `allow_custom_amount=true` | Landlord control |
-| Split payments across methods | Multiple independent payments | Simple, no batching |
-| Prepayment for next year | Create future agreement | Clean separation |
+| Decision                         | Choice                                     | Rationale                |
+| -------------------------------- | ------------------------------------------ | ------------------------ |
+| Agreement creation               | On first successful payment                | Avoids abandoned drafts  |
+| Coverage restart after expiry    | Extend from today, ignore gap              | Matches Cameroon reality |
+| Overpayments                     | Reject                                     | Avoids confusion         |
+| Custom amount step               | 10 XAF                                     | Mobile money rounding    |
+| Landlord plan change effect      | Does not affect active agreements          | Contract stability       |
+| Partial payments in monthly mode | Allowed only if `allow_custom_amount=true` | Landlord control         |
+| Split payments across methods    | Multiple independent payments              | Simple, no batching      |
+| Prepayment for next year         | Create future agreement                    | Clean separation         |
 
 ---
 
 ## 6. API Endpoints (Conceptual)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/units/<id>/payment-plans/` | GET | List available plans for unit |
-| `/api/v1/units/<id>/payment-options/` | GET | Calculate possible payment amounts based on current agreement |
-| `/api/v1/agreements/` | POST | Create agreement (first payment) |
-| `/api/v1/agreements/<id>/pay/` | POST | Make a payment |
-| `/api/v1/agreements/<id>/refund/` | POST | Landlord terminates and refunds |
-| `/api/v1/agreements/<id>/status/` | GET | Get coverage/installment status |
+| Endpoint                              | Method | Description                                                   |
+| ------------------------------------- | ------ | ------------------------------------------------------------- |
+| `/api/v1/units/<id>/payment-plans/`   | GET    | List available plans for unit                                 |
+| `/api/v1/units/<id>/payment-options/` | GET    | Calculate possible payment amounts based on current agreement |
+| `/api/v1/agreements/`                 | POST   | Create agreement (first payment)                              |
+| `/api/v1/agreements/<id>/pay/`        | POST   | Make a payment                                                |
+| `/api/v1/agreements/<id>/refund/`     | POST   | Landlord terminates and refunds                               |
+| `/api/v1/agreements/<id>/status/`     | GET    | Get coverage/installment status                               |
 
 ---
 

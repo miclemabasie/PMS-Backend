@@ -30,6 +30,7 @@
 This API enables landlords and property managers in Cameroon to define flexible payment rules for rental units, and allows tenants to pay rent via mobile money (MTN MoMo, Orange Money), bank transfer, or cash.
 
 ### Core Philosophy
+
 - **No rigid leases**: Agreements are created on first payment and track coverage or installment progress.
 - **Landlord-defined rules**: Each unit has a `PaymentPlan` that controls allowed payment amounts, frequencies, and flexibility.
 - **Tenant-friendly**: Supports irregular payments, split payments, and custom amounts (when enabled).
@@ -37,12 +38,12 @@ This API enables landlords and property managers in Cameroon to define flexible 
 
 ### Key Concepts
 
-| Concept | Description |
-|---------|-------------|
-| **PaymentPlan** | Rule set defined by landlord: monthly/yearly mode, allowed terms, custom amount toggle, installment structure. |
+| Concept             | Description                                                                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **PaymentPlan**     | Rule set defined by landlord: monthly/yearly mode, allowed terms, custom amount toggle, installment structure.                            |
 | **RentalAgreement** | Active contract between tenant and unit. Created on first payment. Tracks `coverage_end_date` (monthly) or `installment_status` (yearly). |
-| **Installment** | Sub-division of a yearly payment plan (e.g., 60% due March, 40% due September). |
-| **Payment** | Actual transaction record. Includes method, provider, transaction ID, and period covered. |
+| **Installment**     | Sub-division of a yearly payment plan (e.g., 60% due March, 40% due September).                                                           |
+| **Payment**         | Actual transaction record. Includes method, provider, transaction ID, and period covered.                                                 |
 
 ---
 
@@ -51,6 +52,7 @@ This API enables landlords and property managers in Cameroon to define flexible 
 All endpoints (except health checks) require authentication via **Bearer Token**.
 
 ### Obtain Token
+
 ```http
 POST /api/v1/auth/login/
 Content-Type: application/json
@@ -62,6 +64,7 @@ Content-Type: application/json
 ```
 
 **Response**:
+
 ```json
 {
   "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -70,12 +73,15 @@ Content-Type: application/json
 ```
 
 ### Using the Token
+
 Include in all subsequent requests:
+
 ```http
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
 ### Token Refresh
+
 ```http
 POST /api/v1/auth/token/refresh/
 Content-Type: application/json
@@ -91,21 +97,21 @@ Content-Type: application/json
 
 ### Query Parameters (Applicable to List Endpoints)
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| `page` | integer | Page number for pagination | `?page=2` |
-| `page_size` | integer | Items per page (max 100) | `?page_size=25` |
-| `is_active` | boolean | Filter by active status | `?is_active=true` |
-| `unit_id` | uuid | Filter by unit | `?unit_id=abc123...` |
-| `tenant_id` | uuid | Filter by tenant | `?tenant_id=def456...` |
+| Parameter   | Type    | Description                | Example                |
+| ----------- | ------- | -------------------------- | ---------------------- |
+| `page`      | integer | Page number for pagination | `?page=2`              |
+| `page_size` | integer | Items per page (max 100)   | `?page_size=25`        |
+| `is_active` | boolean | Filter by active status    | `?is_active=true`      |
+| `unit_id`   | uuid    | Filter by unit             | `?unit_id=abc123...`   |
+| `tenant_id` | uuid    | Filter by tenant           | `?tenant_id=def456...` |
 
 ### Headers
 
-| Header | Required | Description |
-|--------|----------|-------------|
-| `Authorization` | Yes (except health) | `Bearer <token>` |
-| `Content-Type` | Yes (for POST/PUT) | `application/json` |
-| `Accept-Language` | No | `en` or `fr` for localized error messages |
+| Header            | Required            | Description                               |
+| ----------------- | ------------------- | ----------------------------------------- |
+| `Authorization`   | Yes (except health) | `Bearer <token>`                          |
+| `Content-Type`    | Yes (for POST/PUT)  | `application/json`                        |
+| `Accept-Language` | No                  | `en` or `fr` for localized error messages |
 
 ---
 
@@ -129,18 +135,18 @@ All errors return standard HTTP status codes with a JSON body:
 
 ### Common Error Codes
 
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| `AUTHENTICATION_REQUIRED` | 401 | Missing or invalid token |
-| `PERMISSION_DENIED` | 403 | User lacks required role/ownership |
-| `NOT_FOUND` | 404 | Resource (unit, tenant, plan) does not exist |
-| `VALIDATION_ERROR` | 400 | Request body fails schema validation |
-| `PAYMENT_STEP_MISMATCH` | 400 | Amount not multiple of `amount_step` |
-| `INSTALLMENT_ORDER_VIOLATION` | 400 | Tried to pay installment #2 before #1 (when `enforce_installment_order=true`) |
-| `AGREEMENT_INACTIVE` | 400 | Agreement is not active (expired/terminated) |
-| `OVERPAYMENT_REJECTED` | 400 | Amount exceeds remaining balance for current period |
-| `GATEWAY_ERROR` | 502 | Mobile money provider returned error |
-| `WEBHOOK_SIGNATURE_INVALID` | 400 | Webhook HMAC verification failed |
+| Code                          | HTTP Status | Description                                                                   |
+| ----------------------------- | ----------- | ----------------------------------------------------------------------------- |
+| `AUTHENTICATION_REQUIRED`     | 401         | Missing or invalid token                                                      |
+| `PERMISSION_DENIED`           | 403         | User lacks required role/ownership                                            |
+| `NOT_FOUND`                   | 404         | Resource (unit, tenant, plan) does not exist                                  |
+| `VALIDATION_ERROR`            | 400         | Request body fails schema validation                                          |
+| `PAYMENT_STEP_MISMATCH`       | 400         | Amount not multiple of `amount_step`                                          |
+| `INSTALLMENT_ORDER_VIOLATION` | 400         | Tried to pay installment #2 before #1 (when `enforce_installment_order=true`) |
+| `AGREEMENT_INACTIVE`          | 400         | Agreement is not active (expired/terminated)                                  |
+| `OVERPAYMENT_REJECTED`        | 400         | Amount exceeds remaining balance for current period                           |
+| `GATEWAY_ERROR`               | 502         | Mobile money provider returned error                                          |
+| `WEBHOOK_SIGNATURE_INVALID`   | 400         | Webhook HMAC verification failed                                              |
 
 ---
 
@@ -149,26 +155,28 @@ All errors return standard HTTP status codes with a JSON body:
 Define how tenants can pay for a unit. Plans are reusable across units.
 
 ### Create Payment Plan
+
 ```http
 POST /api/v1/payment-plans/
 ```
 
 #### Request Body
 
-| Field | Type | Required | Description | Constraints |
-|-------|------|----------|-------------|-------------|
-| `name` | string | Yes | Human-readable plan name | Max 100 chars |
-| `mode` | string | Yes | `"monthly"` or `"yearly"` | — |
-| `allowed_monthly_terms` | integer[] | No (monthly only) | Allowed month multiples (e.g., `[1,3,6]`). Empty = any up to `max_months`. | Values 1–12 |
-| `max_months` | integer | No (monthly only) | Maximum months payable at once | Default: `12`, Min: `1` |
-| `show_full_payment_option` | boolean | No (yearly only) | Show "Pay full year" button | Default: `true` |
-| `enforce_installment_order` | boolean | No (yearly only) | Require installments paid in sequence | Default: `true` |
-| `allow_custom_amount` | boolean | No | Allow tenant to enter any amount (subject to `amount_step`) | Default: `false` |
-| `amount_step` | integer | No | Payment amounts must be multiples of this (XAF) | Default: `10`, Min: `1` |
-| `late_fee_rules` | object | No | Late fee configuration | See below |
-| `is_active` | boolean | No | Enable/disable plan | Default: `true` |
+| Field                       | Type      | Required          | Description                                                                | Constraints             |
+| --------------------------- | --------- | ----------------- | -------------------------------------------------------------------------- | ----------------------- |
+| `name`                      | string    | Yes               | Human-readable plan name                                                   | Max 100 chars           |
+| `mode`                      | string    | Yes               | `"monthly"` or `"yearly"`                                                  | —                       |
+| `allowed_monthly_terms`     | integer[] | No (monthly only) | Allowed month multiples (e.g., `[1,3,6]`). Empty = any up to `max_months`. | Values 1–12             |
+| `max_months`                | integer   | No (monthly only) | Maximum months payable at once                                             | Default: `12`, Min: `1` |
+| `show_full_payment_option`  | boolean   | No (yearly only)  | Show "Pay full year" button                                                | Default: `true`         |
+| `enforce_installment_order` | boolean   | No (yearly only)  | Require installments paid in sequence                                      | Default: `true`         |
+| `allow_custom_amount`       | boolean   | No                | Allow tenant to enter any amount (subject to `amount_step`)                | Default: `false`        |
+| `amount_step`               | integer   | No                | Payment amounts must be multiples of this (XAF)                            | Default: `10`, Min: `1` |
+| `late_fee_rules`            | object    | No                | Late fee configuration                                                     | See below               |
+| `is_active`                 | boolean   | No                | Enable/disable plan                                                        | Default: `true`         |
 
 **`late_fee_rules` schema**:
+
 ```json
 {
   "grace_days": 5,
@@ -177,6 +185,7 @@ POST /api/v1/payment-plans/
 ```
 
 #### Example: Monthly Flexible Plan
+
 ```json
 {
   "name": "Monthly Flexible",
@@ -191,6 +200,7 @@ POST /api/v1/payment-plans/
 ```
 
 #### Example: Yearly 60/40 Installment Plan
+
 ```json
 {
   "name": "Yearly 60/40 with due dates",
@@ -204,6 +214,7 @@ POST /api/v1/payment-plans/
 ```
 
 **Response** (201 Created):
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -223,33 +234,36 @@ POST /api/v1/payment-plans/
 ---
 
 ### Add Installment to Yearly Plan
+
 ```http
 POST /api/v1/payment-plans/{plan_id}/installments/
 ```
 
 #### Request Body
 
-| Field | Type | Required | Description | Constraints |
-|-------|------|----------|-------------|-------------|
-| `percent` | decimal | Yes | Percentage of yearly rent (0–100) | 2 decimal places |
-| `due_date` | date | No | Suggested due date (YYYY-MM-DD) | — |
-| `order_index` | integer | Yes | Sequence order (0-based) | Unique per plan |
+| Field         | Type    | Required | Description                       | Constraints      |
+| ------------- | ------- | -------- | --------------------------------- | ---------------- |
+| `percent`     | decimal | Yes      | Percentage of yearly rent (0–100) | 2 decimal places |
+| `due_date`    | date    | No       | Suggested due date (YYYY-MM-DD)   | —                |
+| `order_index` | integer | Yes      | Sequence order (0-based)          | Unique per plan  |
 
 #### Example
+
 ```json
 {
-  "percent": 60.00,
+  "percent": 60.0,
   "due_date": "2026-03-01",
   "order_index": 0
 }
 ```
 
 **Response** (201 Created):
+
 ```json
 {
   "id": "inst-uuid-here",
   "payment_plan": "550e8400-e29b-41d4-a716-446655440000",
-  "percent": 60.00,
+  "percent": 60.0,
   "due_date": "2026-03-01",
   "order_index": 0,
   "amount_xaf": 180000
@@ -261,6 +275,7 @@ POST /api/v1/payment-plans/{plan_id}/installments/
 ---
 
 ### List Payment Plans
+
 ```http
 GET /api/v1/payment-plans/
 ```
@@ -268,6 +283,7 @@ GET /api/v1/payment-plans/
 **Query Parameters**: `is_active`, `mode`, `search`
 
 **Response** (200 OK):
+
 ```json
 {
   "count": 2,
@@ -288,6 +304,7 @@ GET /api/v1/payment-plans/
 ---
 
 ### Retrieve Payment Plan
+
 ```http
 GET /api/v1/payment-plans/{plan_id}/
 ```
@@ -297,6 +314,7 @@ GET /api/v1/payment-plans/{plan_id}/
 ---
 
 ### Update/Delete Payment Plan
+
 ```http
 PATCH /api/v1/payment-plans/{plan_id}/   # Partial update
 DELETE /api/v1/payment-plans/{plan_id}/  # Soft delete (sets is_active=false)
@@ -311,19 +329,21 @@ DELETE /api/v1/payment-plans/{plan_id}/  # Soft delete (sets is_active=false)
 An agreement is created on the **first successful payment**. It links a tenant, unit, and payment plan.
 
 ### Create Rental Agreement
+
 ```http
 POST /api/v1/agreements/
 ```
 
 #### Request Body
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `unit_id` | uuid | Yes | Target unit |
-| `tenant_id` | uuid | Yes | Tenant (must have verified profile) |
-| `payment_plan_id` | uuid | Yes | Plan to apply |
+| Field             | Type | Required | Description                         |
+| ----------------- | ---- | -------- | ----------------------------------- |
+| `unit_id`         | uuid | Yes      | Target unit                         |
+| `tenant_id`       | uuid | Yes      | Tenant (must have verified profile) |
+| `payment_plan_id` | uuid | Yes      | Plan to apply                       |
 
 #### Example
+
 ```json
 {
   "unit_id": "unit-uuid-here",
@@ -333,6 +353,7 @@ POST /api/v1/agreements/
 ```
 
 **Response** (201 Created):
+
 ```json
 {
   "id": "agr-uuid-here",
@@ -366,6 +387,7 @@ POST /api/v1/agreements/
 ---
 
 ### Retrieve Agreement
+
 ```http
 GET /api/v1/agreements/{agreement_id}/
 ```
@@ -396,6 +418,7 @@ GET /api/v1/agreements/{agreement_id}/
 ---
 
 ### List Agreements
+
 ```http
 GET /api/v1/agreements/
 ```
@@ -407,11 +430,13 @@ GET /api/v1/agreements/
 ---
 
 ### Terminate Agreement (Landlord Only)
+
 ```http
 POST /api/v1/agreements/{agreement_id}/refund/
 ```
 
 #### Request Body
+
 ```json
 {
   "reason": "Tenant vacated early",
@@ -420,6 +445,7 @@ POST /api/v1/agreements/{agreement_id}/refund/
 ```
 
 **Response**:
+
 ```json
 {
   "message": "Agreement terminated. Refund of 50,000 XAF initiated.",
@@ -443,6 +469,7 @@ GET /api/v1/agreements/{agreement_id}/options/
 **Response** (200 OK):
 
 ### Monthly Mode Example
+
 ```json
 [
   {
@@ -474,6 +501,7 @@ GET /api/v1/agreements/{agreement_id}/options/
 ```
 
 ### Yearly Mode Example (60/40 Installments)
+
 ```json
 [
   {
@@ -516,17 +544,18 @@ POST /api/v1/agreements/{agreement_id}/pay/
 
 ### Request Body
 
-| Field | Type | Required | Description | Constraints |
-|-------|------|----------|-------------|-------------|
-| `amount` | integer | Yes | Payment amount in XAF | Must match an option or be allowed custom |
-| `payment_method` | string | Yes | `mtn_momo`, `orange_money`, `bank_transfer`, `cash`, `other` | — |
-| `phone_number` | string | Conditional | Required for mobile money | Cameroon format: `+2376XXXXXXXX` |
-| `provider` | string | Conditional | `MTN`, `ORANGE`, etc. (for mobile money) | — |
-| `bank_name` | string | Conditional | Required for `bank_transfer` | — |
-| `check_number` | string | Optional | For cash/check payments | — |
-| `notes` | string | Optional | Free-text notes | Max 500 chars |
+| Field            | Type    | Required    | Description                                                  | Constraints                               |
+| ---------------- | ------- | ----------- | ------------------------------------------------------------ | ----------------------------------------- |
+| `amount`         | integer | Yes         | Payment amount in XAF                                        | Must match an option or be allowed custom |
+| `payment_method` | string  | Yes         | `mtn_momo`, `orange_money`, `bank_transfer`, `cash`, `other` | —                                         |
+| `phone_number`   | string  | Conditional | Required for mobile money                                    | Cameroon format: `+2376XXXXXXXX`          |
+| `provider`       | string  | Conditional | `MTN`, `ORANGE`, etc. (for mobile money)                     | —                                         |
+| `bank_name`      | string  | Conditional | Required for `bank_transfer`                                 | —                                         |
+| `check_number`   | string  | Optional    | For cash/check payments                                      | —                                         |
+| `notes`          | string  | Optional    | Free-text notes                                              | Max 500 chars                             |
 
 ### Example: MTN MoMo Payment
+
 ```json
 {
   "amount": 150000,
@@ -538,6 +567,7 @@ POST /api/v1/agreements/{agreement_id}/pay/
 ```
 
 ### Example: Cash Payment
+
 ```json
 {
   "amount": 75000,
@@ -547,12 +577,13 @@ POST /api/v1/agreements/{agreement_id}/pay/
 ```
 
 ### Response (201 Created)
+
 ```json
 {
   "id": "pay-uuid-here",
   "agreement": "agr-uuid-here",
   "amount": 150000,
-  "months_covered": 1.00,
+  "months_covered": 1.0,
   "period_start": "2026-04-23",
   "period_end": "2026-05-23",
   "payment_date": "2026-04-23",
@@ -572,6 +603,7 @@ POST /api/v1/agreements/{agreement_id}/pay/
 ```
 
 ### Payment Status Flow
+
 ```mermaid
 stateDiagram-v2
     [*] --> pending : Payment initiated
@@ -588,6 +620,7 @@ stateDiagram-v2
 ## 📜 Payment History
 
 ### List Payments for Agreement
+
 ```http
 GET /api/v1/payments/?agreement={agreement_id}
 ```
@@ -595,6 +628,7 @@ GET /api/v1/payments/?agreement={agreement_id}
 **Query Parameters**: `status`, `payment_method`, `date_from`, `date_to`
 
 **Response**:
+
 ```json
 {
   "count": 3,
@@ -614,6 +648,7 @@ GET /api/v1/payments/?agreement={agreement_id}
 ```
 
 ### Retrieve Single Payment
+
 ```http
 GET /api/v1/payments/{payment_id}/
 ```
@@ -625,17 +660,20 @@ GET /api/v1/payments/{payment_id}/
 Receive real-time payment confirmations from mobile money providers.
 
 ### Endpoint
+
 ```http
 POST /api/v1/webhooks/payment-gateway/
 ```
 
 ### Headers
-| Header | Description |
-|--------|-------------|
-| `X-Gateway-Signature` | HMAC-SHA256 signature of request body (secret shared out-of-band) |
-| `X-Gateway-Event` | Event type: `payment.success`, `payment.failed`, `payment.refunded` |
+
+| Header                | Description                                                         |
+| --------------------- | ------------------------------------------------------------------- |
+| `X-Gateway-Signature` | HMAC-SHA256 signature of request body (secret shared out-of-band)   |
+| `X-Gateway-Event`     | Event type: `payment.success`, `payment.failed`, `payment.refunded` |
 
 ### Payload Example (MTN MoMo)
+
 ```json
 {
   "event": "payment.success",
@@ -654,11 +692,14 @@ POST /api/v1/webhooks/payment-gateway/
 ```
 
 ### Response Requirements
+
 - Return `200 OK` within 5 seconds to acknowledge receipt.
 - Processing happens asynchronously; failures are retried with exponential backoff.
 
 ### Signature Verification
+
 Your server must:
+
 1. Read raw request body (do not parse first).
 2. Compute `HMAC-SHA256(body, your_webhook_secret)`.
 3. Compare with `X-Gateway-Signature` header (constant-time comparison).
@@ -669,26 +710,31 @@ Your server must:
 ## 🇨🇲 Cameroon-Specific Notes
 
 ### Mobile Money Providers
-| Provider | Code | Phone Prefix | Notes |
-|----------|------|--------------|-------|
-| MTN MoMo | `mtn_momo` | `+23767X`, `+23765X` | Most widely used |
-| Orange Money | `orange_money` | `+23769X`, `+23768X` | Strong in rural areas |
-| Nexttel | `nexttel_money` | `+23766X` | Emerging |
+
+| Provider     | Code            | Phone Prefix         | Notes                 |
+| ------------ | --------------- | -------------------- | --------------------- |
+| MTN MoMo     | `mtn_momo`      | `+23767X`, `+23765X` | Most widely used      |
+| Orange Money | `orange_money`  | `+23769X`, `+23768X` | Strong in rural areas |
+| Nexttel      | `nexttel_money` | `+23766X`            | Emerging              |
 
 ### Phone Number Format
+
 - Always store in **E.164 format**: `+2376XXXXXXXX`
 - Validation regex: `^\+2376[5-9]\d{7}$`
 
 ### Currency Handling
+
 - All amounts are **integers in XAF** (no decimals).
 - `amount_step` prevents awkward values (e.g., 10 XAF step avoids 77,777 XAF).
 
 ### Late Fees
+
 - Configured per `PaymentPlan` via `late_fee_rules`.
 - Applied automatically by daily cron job (not real-time).
 - Generates a separate `Payment` record with `type: "fee"`.
 
 ### Language Support
+
 - All user-facing strings support `en`/`fr` via Django's `gettext`.
 - Set `Accept-Language: fr` header to receive French error messages.
 
@@ -697,6 +743,7 @@ Your server must:
 ## 📎 Appendix: Data Models
 
 ### PaymentPlan
+
 ```json
 {
   "id": "uuid",
@@ -716,11 +763,12 @@ Your server must:
 ```
 
 ### Installment
+
 ```json
 {
   "id": "uuid",
   "payment_plan": "uuid",
-  "percent": 60.00,
+  "percent": 60.0,
   "due_date": "2026-03-01",
   "order_index": 0,
   "amount_xaf": 180000
@@ -728,15 +776,27 @@ Your server must:
 ```
 
 ### RentalAgreement
+
 ```json
 {
   "id": "uuid",
-  "unit": { "id": "uuid", "name": "Studio A", "monthly_rent": 150000, "yearly_rent": 1800000 },
+  "unit": {
+    "id": "uuid",
+    "name": "Studio A",
+    "monthly_rent": 150000,
+    "yearly_rent": 1800000
+  },
   "tenant": { "id": "uuid", "name": "Jean Moukam", "phone": "+237677123456" },
-  "payment_plan": { "id": "uuid", "name": "Monthly Flexible", "mode": "monthly" },
+  "payment_plan": {
+    "id": "uuid",
+    "name": "Monthly Flexible",
+    "mode": "monthly"
+  },
   "start_date": "2026-04-23",
   "coverage_end_date": "2026-07-23",
-  "installment_status": { "0": { "percent": 60, "paid": 180000, "status": "completed" } },
+  "installment_status": {
+    "0": { "percent": 60, "paid": 180000, "status": "completed" }
+  },
   "total_paid": 180000,
   "remaining_balance": 120000,
   "next_due_date": "2026-09-01",
@@ -746,12 +806,13 @@ Your server must:
 ```
 
 ### Payment
+
 ```json
 {
   "id": "uuid",
   "agreement": "uuid",
   "amount": 150000,
-  "months_covered": 1.00,
+  "months_covered": 1.0,
   "period_start": "2026-04-23",
   "period_end": "2026-05-23",
   "payment_date": "2026-04-23",
@@ -802,5 +863,5 @@ stateDiagram-v2
 
 > ✨ **Pro Tip**: Always call `GET /agreements/{id}/options/` before presenting payment buttons to tenants. This ensures your UI reflects the landlord's current rules and the tenant's payment history.
 
-*Documentation: 2026-04-23*  
-*Last updated: v1.0*
+_Documentation: 2026-04-23_  
+_Last updated: v1.0_

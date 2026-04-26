@@ -1,11 +1,10 @@
 The system should **show the options clearly**:
 
 - **60% (180,000 XAF)** – first installment
-- **40% (120,000 XAF)** – second installment  
+- **40% (120,000 XAF)** – second installment
 - **100% (300,000 XAF)** – pay in full
 
 And only if the landlord enables "custom amount", there can be an **"Other amount"** button that opens a numeric input.
-
 
 ---
 
@@ -18,13 +17,14 @@ Landlord creates a `PaymentPlan` with:
 - `mode = yearly`
 - `yearly_rent = 300,000` (set on the unit, but can be overridden in plan)
 - `installments = [
-    {"percent": 60, "label": "First Installment", "due_date": "2026-03-01"},
-    {"percent": 40, "label": "Second Installment", "due_date": "2026-09-01"}
-  ]`
+  {"percent": 60, "label": "First Installment", "due_date": "2026-03-01"},
+  {"percent": 40, "label": "Second Installment", "due_date": "2026-09-01"}
+]`
 - `show_full_payment_option = true` (default true)
 - `allow_custom_amount = false` (default false, can be enabled)
 
 The system automatically calculates the **amount for each installment**:
+
 - 60% → 180,000 XAF
 - 40% → 120,000 XAF
 - 100% → 300,000 XAF
@@ -49,14 +49,16 @@ Choose payment option:
 ```
 
 **If tenant selects a predefined option:**
+
 - System validates that the installment is still pending (not already paid).
 - If paying 60% and it's already fully paid, option is disabled.
 - If paying 40% before 60% is fully paid, system can either:
   - Block it (require sequential installments), or
   - Allow it, but apply payment to first unpaid balance (i.e., pay 60% remainder first, then rest to 40%).
-  We choose **sequential** – installments must be paid in order unless landlord overrides.
+    We choose **sequential** – installments must be paid in order unless landlord overrides.
 
 **If landlord enabled custom amounts and tenant clicks "Other amount":**
+
 - Tenant enters any amount (subject to step value, e.g., multiples of 10).
 - System applies it to the earliest unpaid installment (or splits across installments if the amount exceeds the current due).
 - Example: First installment remaining = 180,000. Tenant enters 200,000. System pays 180,000 to first, and 20,000 to second (reducing second from 120,000 to 100,000). Then shows updated status.
@@ -83,6 +85,7 @@ No guessing.
 We don't need to change the database schema much, only the interpretation and UI logic.
 
 ### PaymentPlan (add fields)
+
 ```python
 class PaymentPlan(TimeStampedUUIDModel):
     # ... existing fields ...
@@ -91,11 +94,22 @@ class PaymentPlan(TimeStampedUUIDModel):
 ```
 
 ### RentalAgreement.installment_status (JSON)
+
 ```json
 {
   "installments": [
-    {"percent": 60, "paid_amount": 0, "remaining": 180000, "status": "pending"},
-    {"percent": 40, "paid_amount": 0, "remaining": 120000, "status": "pending"}
+    {
+      "percent": 60,
+      "paid_amount": 0,
+      "remaining": 180000,
+      "status": "pending"
+    },
+    {
+      "percent": 40,
+      "paid_amount": 0,
+      "remaining": 120000,
+      "status": "pending"
+    }
   ],
   "total_paid": 0,
   "total_remaining": 300000,
