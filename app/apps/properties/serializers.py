@@ -11,9 +11,8 @@ from .models import (
 )
 from apps.users.api.serializers import UserMinimalSerializer
 from apps.users.models import User
-from apps.payments.serializers import PaymentSerializer, PaymentTermSerializer
-from apps.payments.models import PaymentTerm
 from .utils import calculatate_occupancy_rate
+from apps.payments.models import PaymentPlan
 
 
 class PropertyImageSerializer(serializers.ModelSerializer):
@@ -108,15 +107,11 @@ class UnitSerializer(serializers.ModelSerializer):
     property_id = serializers.PrimaryKeyRelatedField(
         queryset=Property.objects.all(), source="property", write_only=True
     )
-    default_payment_term_detail = PaymentTermSerializer(
-        source="default_payment_term", read_only=True
-    )
-    default_payment_term_id = serializers.PrimaryKeyRelatedField(
-        queryset=PaymentTerm.objects.all(),
-        source="default_payment_term",
-        write_only=True,
+    default_payment_plan = serializers.PrimaryKeyRelatedField(
+        queryset=PaymentPlan.objects.all(),
         required=False,
         allow_null=True,
+        help_text="Payment plan for this unit",
     )
     unit_images = UnitImageSerializer(many=True, read_only=True)
     images = serializers.ListField(
@@ -140,10 +135,10 @@ class UnitSerializer(serializers.ModelSerializer):
             "bedrooms",
             "bathrooms",
             "default_rent_amount",
-            "default_payment_term",
-            "default_payment_term_detail",
-            "default_payment_term_id",
+            "default_payment_plan",  # add this line
             "default_security_deposit",
+            "yearly_rent",
+            "monthly_rent",
             "status",
             "amenities",
             "amenities_fr",
@@ -160,17 +155,12 @@ class UnitSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "updated_at"]
 
     def get_property_detail(self, obj):
-        """Return minimal property info to avoid circular reference"""
-        if obj.property:
-            return {
-                "id": obj.property.id,
-                "pkid": str(obj.property.pkid),
-                "name": obj.property.name,
-                "property_type": obj.property.property_type,
-                "city": obj.property.city,
-                "country": obj.property.country,
-            }
-        return None
+
+        return {
+            "id": obj.property.id,
+            "name": obj.property.name,
+            "property_type": obj.property.property_type,
+        }
 
 
 class PropertySerializer(serializers.ModelSerializer):
@@ -259,6 +249,9 @@ class PropertySerializer(serializers.ModelSerializer):
 
     def get_units(self, obj):
         return obj.units
+
+    def get_property_images(self, obj):
+        return obj.property_images
 
 
 class PropertyManagerAssignmentSerializer(serializers.Serializer):

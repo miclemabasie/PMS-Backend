@@ -1,16 +1,23 @@
+# apps/properties/admin.py
+
 from django.contrib import admin
 from django.contrib.contenttypes.admin import GenericTabularInline
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils import timezone
+
 from .models import (
     Owner,
     Manager,
     Property,
     PropertyOwnership,
-    Unit,  # added for status constant
+    Unit,
+    PropertyImage,
+    UnitImage,
 )
 
+# Only import these if you have them and need them in admin
+# If not, remove the lines below or comment them out.
 from apps.rentals.models import (
     LeaseTenant,
     MaintenanceRequest,
@@ -18,6 +25,7 @@ from apps.rentals.models import (
     Document,
     LeaseStatus,
 )
+
 
 # ----------------------------------------------------------------------
 # Inline Classes
@@ -60,7 +68,7 @@ class UnitInline(admin.TabularInline):
 
     def link_to_detail(self, obj):
         if obj.pk:
-            url = reverse("admin:rentals_unit_change", args=[obj.pk])
+            url = reverse("admin:properties_unit_change", args=[obj.pk])
             return format_html('<a href="{}">Edit</a>', url)
         return "-"
 
@@ -94,6 +102,31 @@ class DocumentInline(GenericTabularInline):
     extra = 1
     fields = ["name", "file", "description", "uploaded_by", "created_at"]
     readonly_fields = ["created_at"]
+
+
+class PropertyImageInline(admin.TabularInline):
+    """Inline for property images."""
+
+    model = PropertyImage
+    extra = 1
+    fields = ["image", "alt_text", "is_primary"]
+    verbose_name = "Property Image"
+    verbose_name_plural = "Property Images"
+
+
+class UnitImageInline(admin.TabularInline):
+    """Inline for unit images."""
+
+    model = UnitImage
+    extra = 1
+    fields = ["image", "alt_text", "is_primary"]
+    verbose_name = "Unit Image"
+    verbose_name_plural = "Unit Images"
+
+
+# ----------------------------------------------------------------------
+# Model Admins
+# ----------------------------------------------------------------------
 
 
 @admin.register(Owner)
@@ -189,7 +222,13 @@ class PropertyAdmin(admin.ModelAdmin):
     list_filter = ["property_type", "is_active", "city", "country"]
     search_fields = ["name", "address_line1", "city", "description"]
     readonly_fields = ["id", "created_at", "updated_at", "units_count"]
-    inlines = [PropertyOwnershipInline, UnitInline, ExpenseInline, DocumentInline]
+    inlines = [
+        PropertyOwnershipInline,
+        UnitInline,
+        ExpenseInline,
+        DocumentInline,
+        PropertyImageInline,
+    ]
     fieldsets = (
         (
             "Basic Information",
@@ -229,7 +268,7 @@ class PropertyAdmin(admin.ModelAdmin):
             },
         ),
         ("Media", {"fields": ("images",)}),
-        ("Management", {"fields": ("is_active",)}),  # FIX: removed invalid "managers"
+        ("Management", {"fields": ("is_active",)}),
         (
             "Metadata",
             {
@@ -253,7 +292,7 @@ class UnitAdmin(admin.ModelAdmin):
         "unit_type",
         "status",
         "default_rent_amount",
-        "current_tenant",
+        "current_tenant_summary",
     ]
     list_filter = ["status", "unit_type", "property__city"]
     search_fields = ["unit_number", "property__name", "property__address_line1"]
@@ -263,21 +302,30 @@ class UnitAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
         "current_lease_link",
-        "current_tenant",
+        "current_tenant_summary",
     ]
-    inlines = [MaintenanceRequestInline, DocumentInline]
+    inlines = [MaintenanceRequestInline, DocumentInline, UnitImageInline]
     fieldsets = (
         ("Property & Identification", {"fields": ("property", "unit_number")}),
         (
             "Unit Details",
-            {"fields": ("unit_type", "floor", "size_m2", "bedrooms", "bathrooms")},
+            {
+                "fields": (
+                    "unit_type",
+                    "floor",
+                    "size_m2",
+                    "bedrooms",
+                    "bathrooms",
+                    "yearly_rent",
+                    "monthly_rent",
+                )
+            },
         ),
         (
             "Pricing",
             {
                 "fields": (
                     "default_rent_amount",
-                    "default_payment_term",
                     "default_security_deposit",
                 )
             },
@@ -296,7 +344,10 @@ class UnitAdmin(admin.ModelAdmin):
             },
         ),
         ("Media & Custom Fields", {"fields": ("images", "custom_fields", "language")}),
-        ("Current Lease Info", {"fields": ("current_lease_link", "current_tenant")}),
+        (
+            "Current Lease Info",
+            {"fields": ("current_lease_link", "current_tenant_summary")},
+        ),
         (
             "Metadata",
             {"fields": ("id", "created_at", "updated_at"), "classes": ("collapse",)},
@@ -304,14 +355,14 @@ class UnitAdmin(admin.ModelAdmin):
     )
 
     def property_link(self, obj):
-        url = reverse("admin:rentals_property_change", args=[obj.property.pk])
+        url = reverse("admin:properties_property_change", args=[obj.property.pk])
         return format_html('<a href="{}">{}</a>', url, obj.property.name)
 
     property_link.short_description = "Property"
     property_link.admin_order_field = "property__name"
 
-    # FIXED: use proper query for active lease
     def current_lease_link(self, obj):
+        # Use LeaseStatus.ACTIVE from rentals.models – ensure it's imported
         active_lease = obj.leases.filter(status=LeaseStatus.ACTIVE).first()
         if active_lease:
             url = reverse("admin:rentals_lease_change", args=[active_lease.pk])
@@ -320,8 +371,7 @@ class UnitAdmin(admin.ModelAdmin):
 
     current_lease_link.short_description = "Current Lease"
 
-    # FIXED: use proper query for active lease and its tenants
-    def current_tenant(self, obj):
+    def current_tenant_summary(self, obj):
         active_lease = obj.leases.filter(status=LeaseStatus.ACTIVE).first()
         if active_lease:
             tenants = active_lease.tenants.all()
@@ -329,4 +379,4 @@ class UnitAdmin(admin.ModelAdmin):
                 return ", ".join([str(t) for t in tenants])
         return "Vacant"
 
-    current_tenant.short_description = "Current Tenant(s)"
+    current_tenant_summary.short_description = "Current Tenant(s)"

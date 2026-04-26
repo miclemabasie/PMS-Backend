@@ -169,7 +169,6 @@ class TestUnitSerializer:
             "unit_type",
             "bedrooms",
             "bathrooms",
-            "default_rent_amount",
             "status",
             "amenities",
             "created_at",

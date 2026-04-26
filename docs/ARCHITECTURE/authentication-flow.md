@@ -1,7 +1,7 @@
-
 # 🔐 Authentication & Authorization Flow
 
 ## JWT Lifecycle
+
 ```mermaid
 sequenceDiagram
     participant Client
@@ -26,6 +26,7 @@ sequenceDiagram
 ```
 
 ## Role Resolution
+
 1. **JWT Decodes** → extracts `user_id` from payload
 2. **DRF Auth** → attaches `request.user` (custom `User` model)
 3. **Profile Lookup** → system checks related profile:
@@ -36,14 +37,16 @@ sequenceDiagram
    - `None` → receives empty querysets (default deny)
 
 ## Permission Enforcement
-| Permission Class | Where Used | Behavior |
-|-----------------|------------|----------|
-| `IsAuthenticated` | All API endpoints | Requires valid JWT |
-| `IsOwnerOrManagerOrSuperAdmin` | Properties, Units | Filters to owned/managed |
-| `IsTenantOrReadOnly` | Leases, Maintenance | Tenants can read/create, owners manage |
-| `IsAdminOrReadOnly` | Templates, Broadcasts | Admin-only writes |
+
+| Permission Class               | Where Used            | Behavior                               |
+| ------------------------------ | --------------------- | -------------------------------------- |
+| `IsAuthenticated`              | All API endpoints     | Requires valid JWT                     |
+| `IsOwnerOrManagerOrSuperAdmin` | Properties, Units     | Filters to owned/managed               |
+| `IsTenantOrReadOnly`           | Leases, Maintenance   | Tenants can read/create, owners manage |
+| `IsAdminOrReadOnly`            | Templates, Broadcasts | Admin-only writes                      |
 
 ## Token Settings (`settings/base.py`)
+
 ```python
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
@@ -54,5 +57,3 @@ SIMPLE_JWT = {
 ```
 
 > 🔑 **Key Insight**: Permissions are enforced at **both** the view level (DRF) and repository level (query filtering) for defense-in-depth.
-
-

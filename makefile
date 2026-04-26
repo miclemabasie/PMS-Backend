@@ -100,6 +100,15 @@ dump-db:
 restore-db:
 	@echo "Usage: make restore-db FILE=backup.sql"
 	docker compose exec -T postgres-db psql --username=$(PG_USER) --dbname=$(PG_DB) < $(FILE)
+
+
+load-test-data:
+	docker compose exec api python manage.py populate_test_data
+	
+
+load-test-data-full:
+	docker compose exec api python manage.py populate_test_data_full --properties 20 --units-per-property 15 --tenants 100 --agreements 80 --payments-per-agreement 6
+	
 populate_test_data:
 	docker compose exec api python manage.py populate_test_data --count 100 --seed 123
 
@@ -126,7 +135,7 @@ migrate-elasticsearch:
 # Testing & Code Quality
 # ----------------------------------------------------------------------------
 test:
-	docker compose exec api pytest apps/users/tests/ -p no:warnings --cov=apps --cov-report=term-missing -v
+	docker compose exec api pytest apps/
 
 test-html:
 	docker compose exec api pytest apps/users/tests/ -p no:warnings --cov=apps --cov-report=html --cov-report=term-missing -v
@@ -141,10 +150,10 @@ test-integration:
 	docker compose exec api pytest apps/users/tests/test_views.py -p no:warnings -v -m integration
 
 test-users:
-	docker compose exec api pytest apps/users/tests/ -p no:warnings --cov=apps/users --cov-report=term-missing --cov-report=html -v
+	docker compose exec api pytest apps/users/tests/
 
 test-properties:
-	docker compose exec api pytest apps/properties/tests/ -p no:warnings --cov=apps/properties --cov-report=term-missing --cov-report=html -v
+	docker compose exec api pytest apps/properties/tests/
 
 test-properties-models:
 	docker compose exec api pytest apps/properties/tests/test_models.py -p no:warnings --cov=apps/properties --cov-report=term-missing --cov-report=html -v

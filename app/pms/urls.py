@@ -12,6 +12,7 @@ urlpatterns = [
     path("api/v1/rentals/", include("apps.rentals.urls", namespace="rentals")),
     path("api/v1/tenants/", include("apps.tenants.urls", namespace="tenants")),
     path("api/v1/properties/", include("apps.properties.urls", namespace="properties")),
+    path("api/v1/payments/", include("apps.payments.urls", namespace="payments")),
     path("api/v1/", include("apps.notifications.urls", namespace="notifications")),
 ]
 
