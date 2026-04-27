@@ -120,6 +120,12 @@ class RentalAgreementCreateView(APIView):
         serializer = RentalAgreementSerializer(agreement)
         return Response(serializer.data, status=201)
 
+    def get(self, request):
+        """Get all tenants aggreement"""
+        agreements = self.service.get_all_agreements_for_tenant(request.user.pkid)
+        serializer = RentalAgreementSerializer(agreements, many=True)
+        return Response(serializer.data)
+
 
 class RentalAgreementDetailView(APIView):
     permission_classes = [IsAuthenticated]

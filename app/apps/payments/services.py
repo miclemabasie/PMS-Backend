@@ -151,6 +151,8 @@ class RentalAgreementService(BaseService[RentalAgreement]):
                 installment_status=status_data,
                 is_active=True,
             )
+        unit.status = "occupied"
+        unit.save()
         return agreement
 
     def get_available_payment_options(self, agreement: RentalAgreement) -> list:
@@ -203,6 +205,9 @@ class RentalAgreementService(BaseService[RentalAgreement]):
             if plan.allow_custom_amount:
                 options.append({"type": "custom", "label": "Other amount"})
             return options
+
+    def get_all_agreements(self):
+        return self.repository.find_all()
 
     @transaction.atomic
     def make_payment(
@@ -363,3 +368,7 @@ class RentalAgreementService(BaseService[RentalAgreement]):
                 "You do not have permission to access this agreement."
             )
         return agreement
+
+    def get_all_agreements_for_tenant(self, tenant_id: str) -> List[RentalAgreement]:
+        print("this is the user id", tenant_id, "in the service")
+        return self.repository.find_all_by_tenant(tenant_id)

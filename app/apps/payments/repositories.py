@@ -81,6 +81,10 @@ class RentalAgreementRepository(DjangoRepository[RentalAgreement]):
             agreement.save(update_fields=["coverage_end_date", "updated_at"])
         return agreement
 
+    def find_all_by_tenant(self, tenant_id: str) -> List[RentalAgreement]:
+        print("this is the tenant id", tenant_id, "in the repository")
+        return list(self.model_class.objects.filter(tenant__user__pkid=tenant_id))
+
 
 class PaymentRepository(DjangoRepository[Payment]):
     def __init__(self):
