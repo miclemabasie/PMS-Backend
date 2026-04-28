@@ -7,8 +7,16 @@ from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 from apps.core.models import TimeStampedUUIDModel
 from apps.users.models import User
+from django.conf import settings
 
 # Create your models here.
+TERMINATION_REASON_CHOICES = [
+    ("landlord_initiated", "Landlord Initiated"),
+    ("tenant_initiated", "Tenant Initiated"),
+    ("mutual_agreement", "Mutual Agreement"),
+    ("landlord_forced", "Landlord Forced (No Active Payment)"),
+    ("expired", "Auto‑expired"),
+]
 
 
 class PaymentPlan(TimeStampedUUIDModel):
@@ -116,6 +124,24 @@ class RentalAgreement(TimeStampedUUIDModel):
     # For yearly mode: JSON status of installments
     installment_status = models.JSONField(
         _("Installment status"), default=dict, blank=True
+    )
+
+    termination_date = models.DateField(_("Termination date"), null=True, blank=True)
+    termination_reason_text = models.TextField(_("Termination reason"), blank=True)
+    termination_type = models.CharField(
+        _("Termination type"),
+        max_length=30,
+        choices=TERMINATION_REASON_CHOICES,
+        null=True,
+        blank=True,
+    )
+    terminated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="terminated_agreements",
+        verbose_name=_("Terminated by"),
     )
 
     is_active = models.BooleanField(_("Active"), default=True)

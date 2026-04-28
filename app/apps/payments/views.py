@@ -220,3 +220,28 @@ class PaymentListView(APIView):
         payments = self.payment_service.get_payments_for_agreement(agreement.id)
         serializer = PaymentSerializer(payments, many=True)
         return Response(serializer.data)
+
+
+class TerminateAgreementView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = RentalAgreementService()
+
+    def post(self, request, agreement_id):
+        try:
+            reason = request.data.get("reason", "")
+            mutual_agreement = request.data.get("mutual_agreement", False)
+            agreement = self.service.terminate_agreement(
+                agreement_id=agreement_id,
+                requested_by_user=request.user,
+                reason=reason,
+                mutual_agreement=mutual_agreement,
+            )
+            serializer = RentalAgreementSerializer(agreement)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except PermissionDenied as e:
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)

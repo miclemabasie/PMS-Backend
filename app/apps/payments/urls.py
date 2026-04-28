@@ -9,6 +9,7 @@ from .views import (
     AvailablePaymentOptionsView,
     MakePaymentView,
     PaymentListView,
+    TerminateAgreementView,
 )
 
 app_name = "agreements"
@@ -42,4 +43,9 @@ urlpatterns = [
     ),
     # Payments
     path("payments/", PaymentListView.as_view(), name="payment-list"),
+    path(
+        "agreements/<uuid:agreement_id>/terminate/",
+        TerminateAgreementView.as_view(),
+        name="agreement-terminate",
+    ),
 ]
