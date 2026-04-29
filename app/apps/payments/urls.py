@@ -10,6 +10,8 @@ from .views import (
     MakePaymentView,
     PaymentListView,
     TerminateAgreementView,
+    RentalAgreementListView,
+    RentalAgreementDetailView,
 )
 
 app_name = "agreements"
@@ -26,6 +28,12 @@ urlpatterns = [
     ),
     # Rental Agreements
     path("agreements/", RentalAgreementCreateView.as_view(), name="agreement-create"),
+    path("agreements/all/", RentalAgreementListView.as_view(), name="agreements-all"),
+    path(
+        "agreements/<uuid:agreement_id>/detail/",
+        RentalAgreementDetailView.as_view(),
+        name="agreement-detail-payments",
+    ),
     path(
         "agreements/<uuid:agreement_id>/",
         RentalAgreementDetailView.as_view(),

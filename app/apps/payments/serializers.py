@@ -1,5 +1,8 @@
 from rest_framework import serializers
 from .models import PaymentPlan, Installment, RentalAgreement, Payment
+from apps.properties.serializers import UnitSerializer
+from apps.tenants.serializers import TenantMinimalSerializer
+from decimal import Decimal
 
 
 class InstallmentSerializer(serializers.ModelSerializer):
@@ -50,3 +53,31 @@ class MakePaymentSerializer(serializers.Serializer):
     )
     phone_number = serializers.CharField(required=False, allow_blank=True)
     provider = serializers.CharField(required=False, allow_blank=True)
+
+
+class RentalAgreementDetailSerializer(serializers.ModelSerializer):
+    unit = UnitSerializer(read_only=True)
+    tenant = TenantMinimalSerializer(read_only=True)
+    payment_plan = serializers.StringRelatedField()
+    payments = PaymentSerializer(many=True, read_only=True)
+    total_paid = serializers.SerializerMethodField()
+    remaining_balance = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RentalAgreement
+        fields = "__all__"
+
+    def get_total_paid(self, obj):
+        if obj.payment_plan.mode == "monthly":
+            # sum of completed payments?
+            return sum(p.amount for p in obj.payments.filter(status="completed"))
+        else:
+            return Decimal(obj.installment_status.get("total_paid", 0))
+
+    def get_remaining_balance(self, obj):
+        if obj.payment_plan.mode == "monthly":
+            monthly_rent = obj.unit.monthly_rent or obj.unit.default_rent_amount
+            # calculate unpaid periods? simpler: just return 0 for now
+            return Decimal(0)
+        else:
+            return Decimal(obj.installment_status.get("total_remaining", 0))

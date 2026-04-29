@@ -480,3 +480,7 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         # We'll rely on the fields above.
 
         return agreement
+
+    def get_agreements_for_user(self, user) -> List[RentalAgreement]:
+        """Retrieve all agreements the user has permission to view."""
+        return self.repository.find_all_by_user(user)

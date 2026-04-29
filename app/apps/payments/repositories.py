@@ -85,6 +85,42 @@ class RentalAgreementRepository(DjangoRepository[RentalAgreement]):
         print("this is the tenant id", tenant_id, "in the repository")
         return list(self.model_class.objects.filter(tenant__user__pkid=tenant_id))
 
+    def find_all_by_user(self, user):
+        """
+        Return all rental agreements accessible to the given user.
+        Rules:
+        - Superuser: all agreements
+        - Owner (landlord): agreements for units belonging to properties they own
+        - Manager: agreements for units belonging to properties they manage
+        """
+        from apps.properties.models import Property, PropertyOwnership
+
+        qs = self.model_class.objects.select_related(
+            "unit__property", "tenant", "payment_plan"
+        ).order_by("-created_at")
+
+        if user.is_superuser:
+            return qs
+
+        # Owner (landlord)
+        if hasattr(user, "owner_profile"):
+            # Get properties owned by this user
+            owned_property_ids = Property.objects.filter(
+                ownership_records__owner=user.owner_profile
+            ).values_list("id", flat=True)
+            return qs.filter(unit__property__id__in=owned_property_ids)
+
+        # Manager
+        if hasattr(user, "manager_profile"):
+            # Get properties managed by this user
+            managed_property_ids = user.manager_profile.managed_properties.values_list(
+                "id", flat=True
+            )
+            return qs.filter(unit__property__id__in=managed_property_ids)
+
+        # No relevant role → return empty
+        return qs.none()
+
 
 class PaymentRepository(DjangoRepository[Payment]):
     def __init__(self):

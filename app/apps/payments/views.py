@@ -22,6 +22,8 @@ from .permissions import (
     CanManageRentalAgreement,
 )
 from django.core.exceptions import PermissionDenied
+from .serializers import RentalAgreementDetailSerializer
+from .permissions import user_can_manage_agreement
 
 
 # ----------------------------------------------------------------------
@@ -123,6 +125,19 @@ class RentalAgreementCreateView(APIView):
     def get(self, request):
         """Get all tenants aggreement"""
         agreements = self.service.get_all_agreements_for_tenant(request.user.pkid)
+        serializer = RentalAgreementSerializer(agreements, many=True)
+        return Response(serializer.data)
+
+
+class RentalAgreementListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = RentalAgreementService()
+
+    def get(self, request):
+        agreements = self.service.get_agreements_for_user(request.user)
         serializer = RentalAgreementSerializer(agreements, many=True)
         return Response(serializer.data)
 
@@ -245,3 +260,18 @@ class TerminateAgreementView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except PermissionDenied as e:
             return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+
+
+class RentalAgreementDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, agreement_id):
+        service = RentalAgreementService()
+        agreement = service.get_by_id(agreement_id)
+        if not agreement:
+            return Response({"error": "Not found"}, status=404)
+        # Check permission: landlord/manager can view if they own/manage the property
+        if not user_can_manage_agreement(request.user, agreement):
+            return Response({"error": "Permission denied"}, status=403)
+        serializer = RentalAgreementDetailSerializer(agreement)
+        return Response(serializer.data)
