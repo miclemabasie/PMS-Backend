@@ -128,7 +128,7 @@ class PaymentRepository(DjangoRepository[Payment]):
 
     def find_by_agreement(self, agreement_id: str) -> List[Payment]:
         return list(
-            self.model_class.objects.filter(agreement_id=agreement_id).order_by(
+            self.model_class.objects.filter(agreement__id=agreement_id).order_by(
                 "-payment_date"
             )
         )

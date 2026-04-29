@@ -228,6 +228,7 @@ class PaymentListView(APIView):
             agreement = self.agreement_service.get_agreement_for_user(
                 agreement_id, request.user
             )
+            print("this is the argreement", agreement, agreement.id)
         except ValueError:
             return Response({"error": "Agreement not found"}, status=404)
         except PermissionDenied as e:

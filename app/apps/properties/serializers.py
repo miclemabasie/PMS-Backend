@@ -153,7 +153,7 @@ class UnitSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["created_at", "updated_at"]
+        read_only_fields = ["monthly_rent", "yearly_rent", "created_at", "updated_at"]
 
     def get_property_detail(self, obj):
 

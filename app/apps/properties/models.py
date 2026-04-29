@@ -11,6 +11,9 @@ from model_utils import FieldTracker
 from django.urls import reverse
 from django.conf import settings
 from decimal import Decimal, ROUND_HALF_UP
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Create your models here.
 
@@ -361,40 +364,63 @@ class Unit(TimeStampedUUIDModel):
     def __str__(self):
         return f"{self.property.name} - {self.unit_number}"
 
-
-
-
+    def calculate_default_price_based_on_duration(self) -> Decimal:
+        if self.rent_duration_type == RentDurationType.MONTHLY:
+            return self.calculate_monthly_rent()
+        return self.calculate_yearly_rent()
 
     def calculate_monthly_rent(self) -> Decimal:
         """Return monthly rent as integer XAF, using yearly rent if available."""
         if self.yearly_rent is not None:
             # Yearly rent / 12, rounded to nearest integer
-            return (self.yearly_rent / Decimal('12')).quantize(Decimal('1.'), rounding=ROUND_HALF_UP)
+            return (self.yearly_rent / Decimal("12")).quantize(
+                Decimal("1."), rounding=ROUND_HALF_UP
+            )
         # Fallback to default monthly amount
         return self.default_rent_amount
 
     def calculate_yearly_rent(self) -> Decimal:
         """Return yearly rent as integer XAF (monthly * 12)."""
         if self.monthly_rent is not None:
-            return self.monthly_rent * Decimal('12')
+            return self.monthly_rent * Decimal("12")
         # Fallback: default monthly amount * 12
-        return self.default_rent_amount * Decimal('12')
+        return self.default_rent_amount * Decimal("12")
 
     def save(self, *args, **kwargs):
-        # If one of the two is provided, derive the other from it.
-        # If neither is provided, derive both from default_rent_amount.
-        if self.monthly_rent is not None and self.yearly_rent is None:
-            self.yearly_rent = self.monthly_rent * Decimal('12')
-        elif self.yearly_rent is not None and self.monthly_rent is None:
-            self.monthly_rent = (self.yearly_rent / Decimal('12')).quantize(Decimal('1.'), rounding=ROUND_HALF_UP)
-        elif self.monthly_rent is None and self.yearly_rent is None:
-            # Both missing → use default_rent_amount as monthly base
-            self.monthly_rent = self.default_rent_amount
-            self.yearly_rent = self.default_rent_amount * Decimal('12')
-        # Additional consistency: ensure yearly always equals monthly * 12 (fix rounding mismatches)
-        if self.monthly_rent is not None and self.yearly_rent is not None:
-            # Recalculate yearly from monthly to guarantee consistency
-            self.yearly_rent = self.monthly_rent * Decimal('12')
+        # Step 1: If both primary and secondary are None, use default_rent_amount as primary
+        if self.rent_duration_type == RentDurationType.MONTHLY:
+            if self.monthly_rent is None:
+                self.monthly_rent = self.default_rent_amount or 0
+            # Derive yearly_rent (read-only in API, but stored for performance)
+            self.yearly_rent = self.monthly_rent * Decimal("12")
+        else:  # yearly
+            if self.yearly_rent is None:
+                self.yearly_rent = self.default_rent_amount or 0
+            # Derive monthly_rent, rounded to nearest integer XAF
+            self.monthly_rent = (self.yearly_rent / Decimal("12")).quantize(
+                Decimal("1."), rounding=ROUND_HALF_UP
+            )
+
+        # Step 2: Ensure consistency (optional – warn if user provided both and they mismatch)
+        if self.rent_duration_type == RentDurationType.MONTHLY:
+            expected_yearly = self.monthly_rent * Decimal("12")
+            if self.yearly_rent != expected_yearly:
+                # Log warning but do not override (the yearly field is read-only anyway)
+                logger.warning(
+                    f"Unit {self.pkid}: yearly_rent {self.yearly_rent} does not match "
+                    f"monthly_rent * 12 = {expected_yearly}. Overriding yearly_rent."
+                )
+                self.yearly_rent = expected_yearly
+        else:
+            expected_monthly = (self.yearly_rent / Decimal("12")).quantize(
+                Decimal("1."), rounding=ROUND_HALF_UP
+            )
+            if self.monthly_rent != expected_monthly:
+                logger.warning(
+                    f"Unit {self.pkid}: monthly_rent {self.monthly_rent} does not match "
+                    f"yearly_rent / 12 = {expected_monthly}. Overriding monthly_rent."
+                )
+                self.monthly_rent = expected_monthly
 
         super().save(*args, **kwargs)
 

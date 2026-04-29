@@ -18,7 +18,6 @@ from .permissions import CanManageRentalAgreement
 from django.core.exceptions import PermissionDenied
 from .permissions import user_can_manage_agreement
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -106,6 +105,14 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         self.payment_plan_repo = PaymentPlanRepository()
 
     def create_agreement(self, unit, tenant, payment_plan) -> RentalAgreement:
+        if (
+            payment_plan.mode == "monthly" and unit.rent_duration_type != "monthly"
+        ) or (payment_plan.mode == "yearly" and unit.rent_duration_type != "yearly"):
+            logger.warning(
+                f"PaymentPlan mode '{payment_plan.mode}' does not match Unit rent_duration_type '{unit.rent_duration_type}'. "
+                "Proceeding anyway, but amounts may be unexpected."
+            )
+            raise ValueError("PaymentPlan mode does not match Unit rent_duration_type.")
         if payment_plan.mode == "monthly":
             agreement = self.repository.create(
                 unit=unit,
