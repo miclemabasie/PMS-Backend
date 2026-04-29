@@ -40,6 +40,11 @@ class UnitType(models.TextChoices):
     OTHER = "other", _("Other")
 
 
+class RentDurationType(models.TextChoices):
+    MONTHLY = "monthly", _("Monthly")
+    YEARLY = "yearly", _("Yearly")
+
+
 class Owner(TimeStampedUUIDModel):
     """
     Property owner. Linked to a User account.
@@ -276,6 +281,12 @@ class Unit(TimeStampedUUIDModel):
         max_length=20,
         choices=UnitType.choices,
         default=UnitType.ONE_BED,
+    )
+    rent_duration_type = models.CharField(
+        _("Rent duration type"),
+        max_length=20,
+        choices=RentDurationType.choices,
+        default=RentDurationType.MONTHLY,
     )
     floor = models.PositiveSmallIntegerField(_("Floor"), blank=True, null=True)
     size_m2 = models.PositiveIntegerField(_("Size (m²)"), blank=True, null=True)

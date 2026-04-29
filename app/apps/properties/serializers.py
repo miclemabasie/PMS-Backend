@@ -140,6 +140,7 @@ class UnitSerializer(serializers.ModelSerializer):
             "yearly_rent",
             "monthly_rent",
             "status",
+            "rent_duration_type",
             "amenities",
             "amenities_fr",
             "unit_images",
