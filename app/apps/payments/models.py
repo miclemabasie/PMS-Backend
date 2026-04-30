@@ -228,6 +228,13 @@ class Payment(TimeStampedUUIDModel):
         help_text="Detailed breakdown of platform/gateway fees",
     )
 
+    gateway_reference = models.CharField(
+        _("Gateway reference"), max_length=255, blank=True
+    )
+    gateway_transaction_id = models.CharField(
+        _("Gateway transaction ID"), max_length=255, blank=True
+    )
+
     class Meta:
         verbose_name = _("Payment")
         verbose_name_plural = _("Payments")
