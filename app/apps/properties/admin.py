@@ -14,6 +14,7 @@ from .models import (
     Unit,
     PropertyImage,
     UnitImage,
+    PaymentConfiguration,
 )
 
 # Only import these if you have them and need them in admin
@@ -26,10 +27,9 @@ from apps.rentals.models import (
     LeaseStatus,
 )
 
-
-# ----------------------------------------------------------------------
+# -------------------------------------------------------------
 # Inline Classes
-# ----------------------------------------------------------------------
+# -------------------------------------------------------------
 
 
 class PropertyOwnershipInline(admin.TabularInline):
@@ -124,9 +124,16 @@ class UnitImageInline(admin.TabularInline):
     verbose_name_plural = "Unit Images"
 
 
-# ----------------------------------------------------------------------
+# ---------------------------------------------------------------
 # Model Admins
-# ----------------------------------------------------------------------
+# ---------------------------------------------------------------
+
+
+@admin.register(PaymentConfiguration)
+class PaymentConfigurationAdmin(admin.ModelAdmin):
+    list_display = ("property", "pricing_model", "is_active")
+    list_filter = ("pricing_model", "is_active")
+    search_fields = ("property__name",)
 
 
 @admin.register(Owner)

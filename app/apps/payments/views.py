@@ -276,3 +276,18 @@ class RentalAgreementDetailView(APIView):
             return Response({"error": "Permission denied"}, status=403)
         serializer = RentalAgreementDetailSerializer(agreement)
         return Response(serializer.data)
+
+
+class VerifyPaymentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = RentalAgreementService()
+
+    def get(self, request, payment_id):
+        try:
+            result = self.service.verify_payment(payment_id)
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
