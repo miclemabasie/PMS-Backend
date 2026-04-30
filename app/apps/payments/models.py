@@ -213,6 +213,20 @@ class Payment(TimeStampedUUIDModel):
     notes = models.TextField(_("Notes"), blank=True)
     # Dummy payment gateway response
     gateway_response = models.JSONField(_("Gateway response"), default=dict, blank=True)
+    net_landlord_amount = models.DecimalField(
+        _("Net amount to landlord (XAF)"),
+        max_digits=10,
+        decimal_places=0,
+        null=True,
+        blank=True,
+        help_text="Amount that will be paid out to the landlord after fees",
+    )
+    fee_breakdown = models.JSONField(
+        _("Fee breakdown"),
+        default=dict,
+        blank=True,
+        help_text="Detailed breakdown of platform/gateway fees",
+    )
 
     class Meta:
         verbose_name = _("Payment")
