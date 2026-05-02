@@ -244,3 +244,25 @@ class Payment(TimeStampedUUIDModel):
         return (
             f"{self.amount} XAF - {self.get_payment_method_display()} - {self.status}"
         )
+
+
+class SubscriptionPlan(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    monthly_price = models.DecimalField(
+        max_digits=10, decimal_places=0, help_text="XAF per month"
+    )
+    features = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of feature strings e.g., ['Up to 20 units', 'Priority support']",
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["monthly_price"]
+
+    def __str__(self):
+        return f"{self.name} - {self.monthly_price} XAF/mo"
