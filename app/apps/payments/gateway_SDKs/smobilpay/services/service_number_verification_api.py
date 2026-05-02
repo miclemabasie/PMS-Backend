@@ -1,6 +1,6 @@
 import requests
-from apps.payments.gateways.smobilpay.s3_api_auth import S3ApiAuth
-from apps.payments.gateways.smobilpay.configuration import Configuration
+from apps.payments.gateway_SDKs.smobilpay.s3_api_auth import S3ApiAuth
+from apps.payments.gateway_SDKs.smobilpay.configuration import Configuration
 import logging
 from dataclasses import dataclass
 

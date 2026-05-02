@@ -8,12 +8,10 @@ from apps.users.api.serializers import UserMinimalSerializer
 
 # ============================================================
 # ✅ MINIMAL SERIALIZER (No cross-app imports)
-# Use this in other apps to avoid circular dependencies
 # ============================================================
 class TenantMinimalSerializer(serializers.ModelSerializer):
     """
     Minimal tenant representation for use in other apps.
-    Does NOT import from rentals/leases to avoid circular dependencies.
     """
 
     user = UserMinimalSerializer(read_only=True)
@@ -32,12 +30,11 @@ class TenantMinimalSerializer(serializers.ModelSerializer):
 
 
 # ============================================================
-# ✅ FULL SERIALIZER (With lazy lease serialization)
+# ✅ FULL TENANT SERIALIZER (Using RentalAgreement)
 # ============================================================
 class TenantSerializer(serializers.ModelSerializer):
     """
-    Full tenant serializer with lease information.
-    Uses SerializerMethodField to avoid circular imports.
+    Full tenant serializer with rental agreement information.
     """
 
     user = UserMinimalSerializer(read_only=True)
@@ -45,12 +42,11 @@ class TenantSerializer(serializers.ModelSerializer):
         queryset=User.objects.all(), source="user", write_only=True
     )
 
-    # ✅ Lazy serialization - no import at module level
-    active_lease_count = serializers.SerializerMethodField()
-    total_leases = serializers.SerializerMethodField()
+    # Computed fields
+    active_agreement_count = serializers.SerializerMethodField()
+    total_agreements = serializers.SerializerMethodField()
     current_property = serializers.SerializerMethodField()
     reputation_score = serializers.SerializerMethodField()
-
     phone = serializers.CharField(source="user.profile.phone_number", read_only=True)
 
     class Meta:
@@ -62,6 +58,8 @@ class TenantSerializer(serializers.ModelSerializer):
             "user_id",
             "id_number",
             "id_document",
+            "id_document_front",
+            "id_document_back",
             "emergency_contact_name",
             "emergency_contact_phone",
             "emergency_contact_relation",
@@ -82,9 +80,8 @@ class TenantSerializer(serializers.ModelSerializer):
             "guarantor_name_fr",
             "is_discoverable",
             "is_verified",
-            # ✅ Computed fields (lazy loaded)
-            "active_lease_count",
-            "total_leases",
+            "active_agreement_count",
+            "total_agreements",
             "current_property",
             "reputation_score",
             "created_at",
@@ -93,57 +90,55 @@ class TenantSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "updated_at"]
 
     # ============================================================
-    # ✅ LAZY SERIALIZATION METHODS
-    # Import happens inside method, not at module level
+    # LAZY SERIALIZATION METHODS (using RentalAgreement)
     # ============================================================
 
-    def get_active_lease_count(self, obj):
-        """Get count of active leases without importing Lease model at module level"""
-        # ✅ Local import - only when this method is called
-        from apps.rentals.models import Lease
+    def get_active_agreement_count(self, obj):
+        """Get count of active rental agreements."""
+        from apps.payments.models import RentalAgreement
 
-        return Lease.objects.filter(lease_tenants__tenant=obj, status="active").count()
+        return RentalAgreement.objects.filter(tenant=obj, is_active=True).count()
 
-    def get_total_leases(self, obj):
-        """Get total lease count"""
-        from apps.rentals.models import Lease
+    def get_total_agreements(self, obj):
+        """Get total rental agreement count."""
+        from apps.payments.models import RentalAgreement
 
-        return Lease.objects.filter(lease_tenants__tenant=obj).count()
+        return RentalAgreement.objects.filter(tenant=obj).count()
 
     def get_current_property(self, obj):
-        """Get current property info from active lease"""
-        from apps.rentals.models import Lease
+        """Get current property info from active rental agreement."""
+        from apps.payments.models import RentalAgreement
 
-        lease = (
-            Lease.objects.filter(lease_tenants__tenant=obj, status="active")
+        agreement = (
+            RentalAgreement.objects.filter(tenant=obj, is_active=True)
             .select_related("unit__property")
             .first()
         )
 
-        if lease and lease.unit and lease.unit.property:
+        if agreement and agreement.unit and agreement.unit.property:
             return {
-                "id": str(lease.unit.property.id),
-                "name": lease.unit.property.name,
-                "unit_number": lease.unit.unit_number,
+                "id": str(agreement.unit.property.id),
+                "name": agreement.unit.property.name,
+                "unit_number": agreement.unit.unit_number,
             }
         return None
 
     def get_reputation_score(self, obj):
-        """Calculate reputation score from payment history"""
-        from apps.rentals.models import Payment
+        """Calculate reputation score from payment history."""
+        from apps.payments.models import Payment
 
-        total_payments = Payment.objects.filter(tenant=obj).count()
+        total_payments = Payment.objects.filter(agreement__tenant=obj).count()
         completed_payments = Payment.objects.filter(
-            tenant=obj, status="completed"
+            agreement__tenant=obj, status="completed"
         ).count()
 
         if total_payments == 0:
-            return 50  # Default score
+            return 50
 
         return int((completed_payments / total_payments) * 100)
 
     def validate_id_number(self, value):
-        """Validate ID number uniqueness"""
+        """Validate ID number uniqueness."""
         normalized_value = value.strip().upper()
         queryset = Tenant.objects.filter(id_number=normalized_value)
         if self.instance:
@@ -160,20 +155,20 @@ class TenantSerializer(serializers.ModelSerializer):
         return normalized_value
 
     def create(self, validated_data):
-        """Create tenant with normalized ID"""
+        """Create tenant with normalized ID."""
         if "id_number" in validated_data:
             validated_data["id_number"] = validated_data["id_number"].strip().upper()
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        """Update tenant with normalized ID if changed"""
+        """Update tenant with normalized ID if changed."""
         if "id_number" in validated_data:
             validated_data["id_number"] = validated_data["id_number"].strip().upper()
         return super().update(instance, validated_data)
 
 
 # ============================================================
-# ✅ SEARCH RESULT SERIALIZER (For landlord search)
+# ✅ SEARCH RESULT SERIALIZER
 # ============================================================
 class TenantSearchResultSerializer(serializers.Serializer):
     """
@@ -194,16 +189,60 @@ class TenantSearchResultSerializer(serializers.Serializer):
 
 
 # ============================================================
+# ✅ TENANT DETAIL SERIALIZER (with nested data)
+# ============================================================
+class TenantDetailSerializer(serializers.Serializer):
+    """
+    Detailed tenant info with rental agreement and payment history.
+    """
+
+    tenant = serializers.SerializerMethodField()
+    active_agreement = serializers.SerializerMethodField()
+    agreement_history = serializers.SerializerMethodField()
+    payment_history = serializers.SerializerMethodField()
+    maintenance_requests = serializers.SerializerMethodField()
+
+    def get_tenant(self, obj):
+        return TenantSerializer(obj.get("tenant")).data
+
+    def get_active_agreement(self, obj):
+        from apps.payments.serializers import RentalAgreementSerializer
+
+        agreement = obj.get("active_agreement")
+        if not agreement:
+            return None
+        return RentalAgreementSerializer(agreement).data
+
+    def get_agreement_history(self, obj):
+        from apps.payments.serializers import RentalAgreementSerializer
+
+        agreements = obj.get("agreement_history", [])
+        return RentalAgreementSerializer(agreements, many=True).data
+
+    def get_payment_history(self, obj):
+        from apps.payments.serializers import PaymentSerializer
+
+        payments = obj.get("payment_history", [])
+        return PaymentSerializer(payments, many=True).data
+
+    def get_maintenance_requests(self, obj):
+        from apps.rentals.serializers import MaintenanceRequestSerializer
+
+        requests = obj.get("maintenance_requests", [])
+        return MaintenanceRequestSerializer(requests, many=True).data
+
+
+# ============================================================
 # ✅ ADMIN/DISCOVERY SERIALIZERS
 # ============================================================
 class TenantDiscoveryToggleSerializer(serializers.Serializer):
-    """Serializer for tenant discovery toggle request"""
+    """Serializer for tenant discovery toggle request."""
 
     is_discoverable = serializers.BooleanField(required=True)
 
 
 class AdminTenantControlSerializer(serializers.Serializer):
-    """Serializer for admin tenant control request"""
+    """Serializer for admin tenant control request."""
 
     is_discoverable = serializers.BooleanField(required=False, allow_null=True)
     is_verified = serializers.BooleanField(required=False, allow_null=True)
@@ -214,52 +253,3 @@ class AdminTenantControlSerializer(serializers.Serializer):
                 "At least one field (is_discoverable or is_verified) is required"
             )
         return data
-
-
-class TenantDetailSerializer(serializers.Serializer):
-    """Detailed tenant info with lease and payment history"""
-
-    tenant = serializers.SerializerMethodField()
-    active_lease = serializers.SerializerMethodField()
-    lease_history = serializers.SerializerMethodField()
-    payment_history = serializers.SerializerMethodField()
-    maintenance_requests = serializers.SerializerMethodField()
-
-    def get_maintenance_requests(self, obj):
-        from apps.rentals.serializers import MaintenanceRequestSerializer
-
-        requests = obj.get("maintenance_requests", [])
-        return MaintenanceRequestSerializer(requests, many=True).data
-
-    def get_tenant(self, obj):
-        from apps.tenants.serializers import TenantSerializer
-
-        tenant = obj.get("tenant", {})
-        return TenantSerializer(tenant).data
-
-    def get_active_lease(self, obj):
-        from apps.rentals.serializers import LeaseSerializer
-
-        lease = obj.get("active_lease", {})
-        return LeaseSerializer(lease).data
-
-    def get_lease_history(self, obj):
-        from apps.rentals.serializers import LeaseSerializer
-
-        leases = obj.get("lease_history", [])
-        return LeaseSerializer(leases, many=True).data
-
-    def get_payment_history(self, obj):
-        from apps.rentals.serializers import PaymentSerializer
-
-        payments = obj.get("payment_history", [])
-        return PaymentSerializer(payments, many=True).data
-
-    class Meta:
-        fields = [
-            "tenant",
-            "active_lease",
-            "lease_history",
-            "payment_history",
-            "maintenance_requests",
-        ]

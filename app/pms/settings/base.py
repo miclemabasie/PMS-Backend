@@ -153,6 +153,79 @@ DATABASES = {
     }
 }
 
+USE_REAL_PAYMENT_GATEWAY = env.bool("USE_REAL_PAYMENT_GATEWAY", default=False)
+
+# SmobilPay Configuration
+SMOBILPAY_CONFIG = {
+    "api_url": env("SMOBIL_PAY_API_URL", default=""),
+    "public_token": env("SMOBIL_PAY_API_KEY", default=""),
+    "secret_key": env("SMOBIL_PAY_API_SECRET", default=""),
+    "live_mode": env.bool("SMOBIL_PAY_LIVE_MODE", default=False),
+    "debug": env.bool("SMOBIL_PAY_API_DEBUG", default=False),
+    "merchant_code": env("SMOBILPAY_MERCHANT_CODE", default=""),
+    "pay_item_map": {
+        "mtn_momo": {
+            "cashin": env("SMOBILPAY_MTN_CASHIN_ITEM_ID", default=""),
+            "cashout": env("SMOBILPAY_MTN_CASHOUT_ITEM_ID", default=""),
+            "service_id": env("SMOBILPAY_MTN_SERVICE_ID", default=""),
+            "merchant": env("SMOBILPAY_MTN_MERCHANT", default=""),
+        },
+        "orange_money": {
+            "cashin": env("SMOBILPAY_ORANGE_CASHIN_ITEM_ID", default=""),
+            "cashout": env("SMOBILPAY_ORANGE_CASHOUT_ITEM_ID", default=""),
+            "service_id": env("SMOBILPAY_ORANGE_SERVICE_ID", default=""),
+            "merchant": env("SMOBILPAY_ORANGE_MERCHANT", default=""),
+        },
+    },
+    "webhook_url": env("SMOBIL_PAY_WEBHOOK_URL", default=""),
+    "webhook_secret": env("SMOBIL_PAY_WEBHOOK_SECRET", default=""),
+    "staging_webhook_secret": env("SMOBIL_PAY_STAGING_WEBHOOK_SECRET", default=""),
+}
+
+# Force real gateway (no dummy)
+USE_REAL_PAYMENT_GATEWAY = env.bool("USE_REAL_PAYMENT_GATEWAY", default=True)
+
+SMOBILPAY_MERCHANT_CODE = env("SMOBILPAY_MERCHANT_CODE")
+
+SMOBIL_PAY_API_KEY = env("SMOBIL_PAY_API_KEY")
+
+SMOBIL_PAY_API_SECRET = env("SMOBIL_PAY_API_SECRET")
+
+SMOBIL_PAY_LIVE_MODE = env("SMOBIL_PAY_LIVE_MODE")
+
+SMOBIL_PAY_API_URL = env("SMOBIL_PAY_API_URL")
+
+SMOBIL_PAY_API_URL_STAGING = env("SMOBIL_PAY_API_URL_STAGING")
+
+SMOBIL_PAY_API_VERSION = env("SMOBIL_PAY_API_VERSION")
+
+SMOBIL_PAY_API_DEBUG = env("SMOBIL_PAY_API_DEBUG")
+
+STAGING_MODE = env("STAGING_MODE")
+
+GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY")
+
+
+# SmobilPay Webhook Configuration (from their dashboard)
+SMOBIL_PAY_WEBHOOK_SECRET = env("SMOBIL_PAY_WEBHOOK_SECRET")
+SMOBIL_PAY_WEBHOOK_URL = env("SMOBIL_PAY_WEBHOOK_URL")
+
+# Staging overrides (for testing)
+SMOBIL_PAY_STAGING_WEBHOOK_SECRET = env("SMOBIL_PAY_STAGING_WEBHOOK_SECRET")
+
+
+SMOBILPAY_PAYITEM_IDS = {
+    "mtn_momo": {
+        "cashin": env("SMOBILPAY_MTN_CASHIN_ITEM_ID"),
+        "cashout": env("SMOBILPAY_MTN_CASHOUT_ITEM_ID"),
+    },
+    "orange_money": {
+        "cashin": env("SMOBILPAY_ORANGE_CASHIN_ITEM_ID"),
+        "cashout": env("SMOBILPAY_ORANGE_CASHOUT_ITEM_ID"),
+    },
+}
+
+
 # -----------------------------
 # Elasticsearch
 # -----------------------------

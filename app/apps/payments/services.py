@@ -10,15 +10,17 @@ from .repositories import (
     InstallmentRepository,
     RentalAgreementRepository,
     PaymentRepository,
+    SubscriptionPlanRepository,
 )
 from .dummy_payment_processor import DummyPaymentProcessor
-from .models import PaymentPlan, Installment, RentalAgreement, Payment
+from .models import PaymentPlan, Installment, RentalAgreement, Payment, SubscriptionPlan
 from typing import Optional, List, Dict, Any
 from .permissions import CanManageRentalAgreement
 from django.core.exceptions import PermissionDenied
 from .permissions import user_can_manage_agreement
 from apps.properties.models import PaymentConfiguration
 from .utils.rent_calculator import RentCalculator
+from apps.payments.managers.payment_manager import PaymentManager
 
 logger = logging.getLogger(__name__)
 
@@ -225,158 +227,6 @@ class RentalAgreementService(BaseService[RentalAgreement]):
     def get_all_agreements(self):
         return self.repository.find_all()
 
-    # @transaction.atomic
-    # def make_payment(
-    #     self,
-    #     agreement: RentalAgreement,
-    #     amount: Decimal,
-    #     payment_method: str,
-    #     phone_number: str = None,
-    #     provider: str = None,
-    # ) -> Payment:
-    #     plan = agreement.payment_plan
-    #     amount = Decimal(str(amount))
-
-    #     # Dummy payment processing
-    #     processor = DummyPaymentProcessor()
-    #     if payment_method in ["mtn_momo", "orange_money"] and phone_number and provider:
-    #         result = processor.initiate_payment(amount, phone_number, provider)
-    #     else:
-    #         result = {
-    #             "success": True,
-    #             "transaction_id": str(uuid.uuid4()),
-    #             "status": "completed",
-    #         }
-
-    #     if not result["success"]:
-    #         raise Exception("Payment failed: " + result.get("message", "Unknown error"))
-
-    #     months_covered = None
-    #     period_start = None
-    #     period_end = None
-
-    #     if plan.mode == "monthly":
-    #         monthly_rent = agreement.unit.monthly_rent
-    #         # Calculate exact months from amount (must be whole number)
-    #         months_raw = amount / monthly_rent
-    #         if months_raw % 1 != 0:
-    #             raise ValueError(
-    #                 f"Amount must be an exact multiple of monthly rent ({monthly_rent} XAF)."
-    #             )
-    #         months = int(months_raw)
-
-    #         # Check if this month count is allowed
-    #         allowed_terms = (
-    #             plan.allowed_monthly_terms
-    #             if plan.allowed_monthly_terms
-    #             else list(range(1, plan.max_months + 1))
-    #         )
-    #         if months not in allowed_terms:
-    #             raise ValueError(
-    #                 f"Payment of {months} month(s) not allowed. Allowed: {allowed_terms}"
-    #             )
-
-    #         # Calculate days covered (using 30 days per month for consistency)
-    #         days_covered = months * 30
-
-    #         # Determine the start date for this coverage period
-    #         current_coverage = agreement.coverage_end_date
-
-    #         if current_coverage and current_coverage >= timezone.now().date():
-    #             # Existing coverage extends into the future → start from current coverage end
-    #             period_start = current_coverage
-    #             new_end = current_coverage + timedelta(days=days_covered)
-    #         else:
-    #             # No future coverage (expired or first payment) → start from today
-    #             period_start = timezone.now().date()
-    #             new_end = period_start + timedelta(days=days_covered)
-
-    #         # Update agreement coverage
-    #         self.repository.update_coverage_end_date(agreement.id, new_end)
-    #         months_covered = months
-    #         period_end = new_end
-
-    #     else:  # yearly
-    #         status = agreement.installment_status
-    #         installments = status["installments"]
-    #         next_idx = status.get("next_installment_index")
-    #         if next_idx is None:
-    #             raise ValueError("This agreement is already fully paid.")
-
-    #         current_installment = installments[next_idx]
-    #         due = Decimal(current_installment["remaining"])
-
-    #         # If custom amounts are not allowed, amount must be exactly the due amount
-    #         if not plan.allow_custom_amount and amount != due:
-    #             raise ValueError(
-    #                 f"Custom amounts not allowed. You must pay the full due amount of {due} XAF."
-    #             )
-
-    #         # Also, if custom allowed, ensure amount does not exceed total remaining
-    #         total_remaining = Decimal(status["total_remaining"])
-    #         if amount > total_remaining:
-    #             raise ValueError(
-    #                 f"Amount exceeds total remaining due ({total_remaining} XAF)."
-    #             )
-
-    #         # Apply payment to installments
-    #         remaining = amount
-    #         total_paid = Decimal(status["total_paid"])
-    #         total_remaining = Decimal(status["total_remaining"])
-
-    #         for idx, inst in enumerate(installments):
-    #             if remaining <= 0:
-    #                 break
-    #             if inst["status"] != "pending":
-    #                 continue
-    #             due = Decimal(inst["remaining"])
-    #             if remaining >= due:
-    #                 inst["paid_amount"] = str(Decimal(inst["paid_amount"]) + due)
-    #                 inst["remaining"] = "0"
-    #                 inst["status"] = "paid"
-    #                 remaining -= due
-    #                 total_paid += due
-    #                 total_remaining -= due
-    #             else:
-    #                 # Partial payment (only reached if allow_custom_amount is true)
-    #                 inst["paid_amount"] = str(Decimal(inst["paid_amount"]) + remaining)
-    #                 inst["remaining"] = str(due - remaining)
-    #                 total_paid += remaining
-    #                 total_remaining -= remaining
-    #                 remaining = 0
-
-    #         # Determine next pending index
-    #         next_idx = None
-    #         for idx, inst in enumerate(installments):
-    #             if inst["status"] == "pending":
-    #                 next_idx = idx
-    #                 break
-
-    #         status["total_paid"] = str(total_paid)
-    #         status["total_remaining"] = str(total_remaining)
-    #         status["next_installment_index"] = next_idx
-    #         self.repository.update_installment_status(agreement.id, status)
-
-    #         # For yearly payments, period is the full year from start date
-    #         period_start = agreement.start_date
-    #         period_end = agreement.start_date + timedelta(days=365)
-
-    #     # Create payment record with corrected period dates
-    #     payment = self.payment_repo.create(
-    #         agreement=agreement,
-    #         amount=amount,
-    #         months_covered=months_covered,
-    #         period_start=period_start,
-    #         period_end=period_end,
-    #         payment_method=payment_method,
-    #         status="completed",
-    #         transaction_id=result.get("transaction_id", ""),
-    #         mobile_phone=phone_number or "",
-    #         mobile_provider=provider or "",
-    #         gateway_response=result,
-    #     )
-    #     return payment
-
     @transaction.atomic
     def make_payment(
         self,
@@ -385,12 +235,13 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         payment_method: str,
         phone_number: str = None,
         provider: str = None,
+        months: int = None,  # new
+        installment_index: int = None,  # new
     ) -> Payment:
-        from apps.payments.managers.payment_manager import PaymentManager
-
         manager = PaymentManager(agreement)
-        # Phase 1: initiate, returns pending payment
-        return manager.initiate_payment(amount, payment_method, phone_number, provider)
+        return manager.initiate_payment(
+            amount, payment_method, phone_number, provider, months, installment_index
+        )
 
     def verify_payment(self, payment_id: str) -> Dict[str, Any]:
         """Phase 2: verify pending payment and complete if successful."""
@@ -530,3 +381,32 @@ class RentalAgreementService(BaseService[RentalAgreement]):
     def get_agreements_for_user(self, user) -> List[RentalAgreement]:
         """Retrieve all agreements the user has permission to view."""
         return self.repository.find_all_by_user(user)
+
+
+class SubscriptionPlanService(BaseService[SubscriptionPlan]):
+    def __init__(self):
+        super().__init__(SubscriptionPlanRepository())
+
+    def get_active_plans(self):
+        """Public list of active plans."""
+        return self.repository.find_active()
+
+    def create_plan(self, data):
+        """Admin only – create new subscription plan."""
+        return self.repository.create(**data)
+
+    def update_plan(self, plan_id, data):
+        """Admin only – update existing plan."""
+        plan = self.get_by_id(plan_id)
+        if not plan:
+            raise ValueError("Plan not found")
+        return self.repository.update(plan, **data)
+
+    def delete_plan(self, plan_id):
+        """Soft delete (set is_active=False) – admin only."""
+        plan = self.get_by_id(plan_id)
+        if plan:
+            plan.is_active = False
+            plan.save(update_fields=["is_active"])
+            return True
+        return False

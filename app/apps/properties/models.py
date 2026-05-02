@@ -59,6 +59,22 @@ class Owner(TimeStampedUUIDModel):
         related_name="owner_profile",
         verbose_name=_("User"),
     )
+    subscription_plan = models.ForeignKey(
+        "payments.SubscriptionPlan", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    subscription_status = models.CharField(
+        max_length=20,
+        choices=[
+            ("active", "Active"),
+            ("trial", "Trial"),
+            ("past_due", "Past Due"),
+            ("cancelled", "Cancelled"),
+            ("expired", "Expired"),
+        ],
+        default="trial",
+    )
+    subscription_start_date = models.DateField(null=True, blank=True)
+    subscription_end_date = models.DateField(null=True, blank=True)
     preferred_payout_method = models.CharField(
         _("Preferred payout method"),
         max_length=20,

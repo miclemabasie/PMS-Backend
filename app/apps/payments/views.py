@@ -2,8 +2,8 @@
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework import status, viewsets, permissions
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.shortcuts import get_object_or_404
 
 from apps.properties.services import UnitService
@@ -24,11 +24,14 @@ from .permissions import (
 from django.core.exceptions import PermissionDenied
 from .serializers import RentalAgreementDetailSerializer
 from .permissions import user_can_manage_agreement
+from .models import SubscriptionPlan
+from .serializers import SubscriptionPlanSerializer
+from .services import SubscriptionPlanService
 
 
-# ----------------------------------------------------------------------
+# ----------------------------------------------------
 # Payment Plan Views
-# ----------------------------------------------------------------------
+# ----------------------------------------------------
 class PaymentPlanListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -87,9 +90,9 @@ class InstallmentListCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# ----------------------------------------------------------------------
+# ----------------------------------------------------
 # Rental Agreement Views
-# ----------------------------------------------------------------------
+# ----------------------------------------------------
 class RentalAgreementCreateView(APIView):
     permission_classes = [IsAuthenticated, IsLandlordOrManagerOrSuperAdminForUnit]
 
@@ -186,21 +189,21 @@ class MakePaymentView(APIView):
         self.service = RentalAgreementService()
 
     def post(self, request, agreement_id):
-        agreement = self.service.get_by_id(agreement_id)
-        if not agreement:
-            return Response({"error": "Agreement not found"}, status=404)
         serializer = MakePaymentSerializer(data=request.data)
+        agreement = self.service.get_agreement_for_user(agreement_id, request.user)
         if serializer.is_valid():
             try:
-                print("### got to the start")
                 payment = self.service.make_payment(
                     agreement=agreement,
                     amount=serializer.validated_data["amount"],
                     payment_method=serializer.validated_data["payment_method"],
                     phone_number=serializer.validated_data.get("phone_number"),
                     provider=serializer.validated_data.get("provider"),
+                    months=serializer.validated_data.get("months"),
+                    installment_index=serializer.validated_data.get(
+                        "installment_index"
+                    ),
                 )
-                print("### made the payment")
                 return Response(
                     PaymentSerializer(payment).data, status=status.HTTP_201_CREATED
                 )
@@ -209,9 +212,9 @@ class MakePaymentView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# ----------------------------------------------------------------------
+# ----------------------------------------------------
 # Payment Views
-# ----------------------------------------------------------------------
+# ----------------------------------------------------
 class PaymentListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -291,3 +294,76 @@ class VerifyPaymentView(APIView):
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ----------------------------------------------------
+# Public list – anyone authenticated can see active plans
+# ----------------------------------------------------
+class PublicSubscriptionPlanListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = SubscriptionPlanService()
+
+    def get(self, request):
+        plans = self.service.get_active_plans()
+        serializer = SubscriptionPlanSerializer(plans, many=True)
+        return Response(serializer.data)
+
+
+# ----------------------------------------------------
+# Admin management – full CRUD
+# ----------------------------------------------------
+class AdminSubscriptionPlanListCreateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = SubscriptionPlanService()
+
+    def get(self, request):
+        """List all plans (including inactive) – admin only."""
+        plans = self.service.get_all()  # from BaseService
+        serializer = SubscriptionPlanSerializer(plans, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = SubscriptionPlanSerializer(data=request.data)
+        if serializer.is_valid():
+            plan = self.service.create_plan(serializer.validated_data)
+            output = SubscriptionPlanSerializer(plan)
+            return Response(output.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminSubscriptionPlanDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = SubscriptionPlanService()
+
+    def get(self, request, pk):
+        plan = self.service.get_by_id(pk)
+        if not plan:
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+        serializer = SubscriptionPlanSerializer(plan)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        plan = self.service.get_by_id(pk)
+        if not plan:
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+        serializer = SubscriptionPlanSerializer(plan, data=request.data)
+        if serializer.is_valid():
+            updated = self.service.update_plan(pk, serializer.validated_data)
+            output = SubscriptionPlanSerializer(updated)
+            return Response(output.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        deleted = self.service.delete_plan(pk)
+        if not deleted:
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)

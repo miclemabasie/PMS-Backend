@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict, Any
 from django.db.models import Q
 from apps.core.base_repository import DjangoRepository
-from .models import PaymentPlan, Installment, RentalAgreement, Payment
+from .models import PaymentPlan, Installment, RentalAgreement, Payment, SubscriptionPlan
 
 
 class PaymentPlanRepository(DjangoRepository[PaymentPlan]):
@@ -140,3 +140,18 @@ class PaymentRepository(DjangoRepository[Payment]):
             )
         except self.model_class.DoesNotExist:
             return None
+
+
+class SubscriptionPlanRepository(DjangoRepository[SubscriptionPlan]):
+    def __init__(self):
+        super().__init__(SubscriptionPlan)
+
+    def find_active(self):
+        """Return only active plans, ordered by price."""
+        return list(
+            self.model_class.objects.filter(is_active=True).order_by("monthly_price")
+        )
+
+    def get_for_public(self):
+        """Alias for find_active – used in public endpoints."""
+        return self.find_active()

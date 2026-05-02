@@ -19,6 +19,7 @@ from .serializers import (
     UnitSerializer,
     PropertyImageSerializer,
     UnitImageSerializer,
+    OwnerSubscriptionSerializer,
 )
 from .services import (
     PropertyService,
@@ -759,3 +760,76 @@ class UnitImageDeleteView(APIView):
             return Response(status=204)
         except ValueError as e:
             return Response({"detail": str(e)}, status=404)
+
+
+from .serializers import OwnerSubscriptionDetailSerializer
+
+
+class OwnerSubscriptionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = OwnerService()
+
+    def get(self, request):
+        """Get current owner's subscription details."""
+        owner = self.service.get_owner_for_user(request.user)
+        if not owner:
+            return Response({"detail": "Owner profile not found"}, status=404)
+        serializer = OwnerSubscriptionDetailSerializer(owner)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        """Assign a subscription plan to the owner."""
+        owner = self.service.get_owner_for_user(request.user)
+        if not owner:
+            return Response({"detail": "Owner profile not found"}, status=404)
+
+        plan_id = request.data.get("subscription_plan_id")
+        if not plan_id:
+            return Response({"error": "subscription_plan_id required"}, status=400)
+
+        try:
+            updated_owner = self.service.assign_subscription(owner, plan_id)
+            serializer = OwnerSubscriptionDetailSerializer(updated_owner)
+            return Response(serializer.data, status=200)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=400)
+
+    def delete(self, request):
+        """Cancel subscription."""
+        owner = self.service.get_owner_for_user(request.user)
+        if not owner:
+            return Response({"detail": "Owner profile not found"}, status=404)
+        updated_owner = self.service.cancel_subscription(owner)
+        serializer = OwnerSubscriptionDetailSerializer(updated_owner)
+        return Response(serializer.data, status=200)
+
+
+class OwnerSubscriptionUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = OwnerService()
+
+    def patch(self, request):
+        serializer = OwnerSubscriptionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        owner = request.user.owner_profile  # assumes user has owner_profile
+        try:
+            updated_owner = self.service.update_subscription(
+                owner.pkid, serializer.validated_data["subscription_plan_id"]
+            )
+            return Response(
+                {
+                    "status": "updated",
+                    "subscription_plan": updated_owner.subscription_plan.name,
+                    "subscription_end_date": updated_owner.subscription_end_date,
+                }
+            )
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

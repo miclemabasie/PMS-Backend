@@ -1,7 +1,7 @@
 import requests
-from apps.payments.gateways.smobilpay.models.merchant_model import MerchantModel
-from apps.payments.gateways.smobilpay.s3_api_auth import S3ApiAuth
-from apps.payments.gateways.smobilpay.configuration import (
+from apps.payments.gateway_SDKs.smobilpay.models.merchant_model import MerchantModel
+from apps.payments.gateway_SDKs.smobilpay.s3_api_auth import S3ApiAuth
+from apps.payments.gateway_SDKs.smobilpay.configuration import (
     Configuration,
 )  # Assuming Configuration manages environment-based settings
 import logging

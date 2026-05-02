@@ -19,13 +19,47 @@ from .repositories import (
     UnitRepository,
 )
 from apps.core.base_service import BaseService
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
 
-# ----------------------------------------------------------------------
+def can_add_property(owner):
+    if not owner.subscription_plan:
+        return False, "No active subscription plan"
+    if owner.subscription_plan.max_properties:
+        current_count = owner.properties.count()
+        if current_count >= owner.subscription_plan.max_properties:
+            return (
+                False,
+                f"Your plan allows only {owner.subscription_plan.max_properties} properties",
+            )
+    return True, ""
+
+
+def can_add_unit(property, owner):
+    if owner.subscription_plan.max_units_total:
+        total_units = Unit.objects.filter(property__owners=owner).count()
+        if total_units >= owner.subscription_plan.max_units_total:
+            return (
+                False,
+                f"Your plan allows only {owner.subscription_plan.max_units_total} units total",
+            )
+    if owner.subscription_plan.max_units_per_property:
+        units_in_property = property.units.count()
+        if units_in_property >= owner.subscription_plan.max_units_per_property:
+            return (
+                False,
+                f"Your plan allows only {owner.subscription_plan.max_units_per_property} units per property",
+            )
+    return True, ""
+
+
+# ---------------------------------------------------
 # Owner Service
-# ----------------------------------------------------------------------
+# ---------------------------------------------------
+
+
 class OwnerService(BaseService[Owner]):
     def __init__(self):
         super().__init__(OwnerRepository())
@@ -42,6 +76,54 @@ class OwnerService(BaseService[Owner]):
             return user.owner_profile
         except Owner.DoesNotExist:
             return self.create(user=user)
+
+    def get_owner_for_user(self, user):
+        """Get owner profile for the authenticated user."""
+        try:
+            return user.owner_profile
+        except Owner.DoesNotExist:
+            return None
+
+    def assign_subscription(self, owner, plan_id):
+        """
+        Assign a subscription plan to an owner (activates it).
+        - owner: Owner object
+        - plan_id: UUID of the SubscriptionPlan
+        """
+        from apps.payments.models import SubscriptionPlan
+
+        try:
+            plan = SubscriptionPlan.objects.get(id=plan_id, is_active=True)
+        except SubscriptionPlan.DoesNotExist:
+            raise ValueError("Invalid or inactive subscription plan")
+
+        # Use repository method with owner object and plan
+        return self.repository.update_subscription(owner, plan, status="active")
+
+    def cancel_subscription(self, owner):
+        """
+        Cancel owner's subscription (status set to 'cancelled').
+        Keeps the plan reference for history.
+        """
+        if not owner.subscription_plan:
+            raise ValueError("No active subscription to cancel")
+        return self.repository.update_subscription(
+            owner,
+            owner.subscription_plan,
+            status="cancelled",
+            start_date=owner.subscription_start_date,
+            end_date=owner.subscription_end_date,
+        )
+
+    def update_subscription(self, owner_id, subscription_plan_id):
+        """
+        Update subscription by owner ID and plan ID.
+        Fetches owner and calls assign_subscription.
+        """
+        owner = self.get_by_id(owner_id)
+        if not owner:
+            raise ValueError("Owner not found")
+        return self.assign_subscription(owner, subscription_plan_id)
 
 
 # ----------------------------------------------------------------------

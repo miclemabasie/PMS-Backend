@@ -1,7 +1,7 @@
 import requests
-from apps.payments.gateways.smobilpay.models.quote_model import QuoteModel
-from apps.payments.gateways.smobilpay.s3_api_auth import S3ApiAuth
-from apps.payments.gateways.smobilpay.configuration import (
+from apps.payments.gateway_SDKs.smobilpay.models.quote_model import QuoteModel
+from apps.payments.gateway_SDKs.smobilpay.s3_api_auth import S3ApiAuth
+from apps.payments.gateway_SDKs.smobilpay.configuration import (
     Configuration,
 )  # Import the configuration class
 import logging

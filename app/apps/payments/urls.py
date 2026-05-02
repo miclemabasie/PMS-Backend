@@ -13,6 +13,9 @@ from .views import (
     RentalAgreementListView,
     RentalAgreementDetailView,
     VerifyPaymentView,
+    PublicSubscriptionPlanListView,
+    AdminSubscriptionPlanListCreateView,
+    AdminSubscriptionPlanDetailView,
 )
 
 app_name = "agreements"
@@ -58,8 +61,23 @@ urlpatterns = [
         name="agreement-terminate",
     ),
     path(
-        "payments/<uuid:payment_id>/verify/",
-        VerifyPaymentView.as_view(),
-        name="verify-payment",
+        "verify/<uuid:payment_id>/", VerifyPaymentView.as_view(), name="verify-payment"
+    ),
+    # Public (authenticated) list of active subscription plans
+    path(
+        "subscription-plans/",
+        PublicSubscriptionPlanListView.as_view(),
+        name="subscription-plans-list",
+    ),
+    # Admin endpoints (full management)
+    path(
+        "admin/subscription-plans/",
+        AdminSubscriptionPlanListCreateView.as_view(),
+        name="admin-subscription-plans",
+    ),
+    path(
+        "admin/subscription-plans/<uuid:pk>/",
+        AdminSubscriptionPlanDetailView.as_view(),
+        name="admin-subscription-plan-detail",
     ),
 ]

@@ -249,20 +249,22 @@ class Payment(TimeStampedUUIDModel):
 class SubscriptionPlan(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
-    monthly_price = models.DecimalField(
-        max_digits=10, decimal_places=0, help_text="XAF per month"
+    monthly_price = models.DecimalField(max_digits=10, decimal_places=0)
+    # Limits
+    max_properties = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Null = unlimited"
     )
-    features = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="List of feature strings e.g., ['Up to 20 units', 'Priority support']",
-    )
+    max_units_total = models.PositiveIntegerField(null=True, blank=True)
+    max_units_per_property = models.PositiveIntegerField(null=True, blank=True)
+    # Feature flags
+    has_api_access = models.BooleanField(default=False)
+    has_advanced_reports = models.BooleanField(default=False)
+    has_priority_support = models.BooleanField(default=False)
+    has_bulk_sms = models.BooleanField(default=False)
+    features = models.JSONField(default=list, blank=True)  # human‑readable list
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    class Meta:
-        ordering = ["monthly_price"]
-
     def __str__(self):
-        return f"{self.name} - {self.monthly_price} XAF/mo"
+        return f"{self.name} – {self.monthly_price} XAF/mo"

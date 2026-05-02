@@ -20,6 +20,8 @@ from .views import (
     UnitImageListView,
     UnitImageUploadView,
     UnitImageDeleteView,
+    OwnerSubscriptionView,
+    OwnerSubscriptionUpdateView,
 )
 
 app_name = "properties"
@@ -97,5 +99,15 @@ urlpatterns = [
         "units/<uuid:pk>/images/<int:image_id>/delete/",
         UnitImageDeleteView.as_view(),
         name="unit-images-delete",
+    ),
+    path(
+        "owners/subscription/",
+        OwnerSubscriptionView.as_view(),
+        name="owner-subscription",
+    ),
+    path(
+        "owners/subscription/",
+        OwnerSubscriptionUpdateView.as_view(),
+        name="owner-subscription-update",
     ),
 ]

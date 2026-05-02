@@ -37,7 +37,6 @@ class TenantListCreateView(APIView):
 
     def get(self, request):
         property_id = request.query_params.get("property")
-
         if property_id:
             tenants = self.service.get_tenants_for_property(property_id)
         else:
@@ -95,9 +94,13 @@ class TenantDetailView(APIView):
             return Response({"detail": "Not found"}, status=404)
         self.check_object_permissions(request, tenant)
 
-        if tenant.leases.filter(status="active").exists():
+        # Check for active rental agreement instead of lease
+        from apps.payments.models import RentalAgreement
+
+        if RentalAgreement.objects.filter(tenant=tenant, is_active=True).exists():
             return Response(
-                {"detail": "Cannot delete tenant with active lease"}, status=400
+                {"detail": "Cannot delete tenant with active rental agreement"},
+                status=400,
             )
         self.service.delete(pk)
         return Response(status=204)

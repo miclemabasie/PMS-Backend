@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import PaymentPlan, Installment, RentalAgreement, Payment
+from .models import PaymentPlan, Installment, RentalAgreement, Payment, SubscriptionPlan
 from apps.properties.serializers import UnitSerializer
 from apps.tenants.serializers import TenantMinimalSerializer
 from decimal import Decimal
@@ -53,6 +53,12 @@ class MakePaymentSerializer(serializers.Serializer):
     )
     phone_number = serializers.CharField(required=False, allow_blank=True)
     provider = serializers.CharField(required=False, allow_blank=True)
+    # NEW: for monthly mode – how many months this payment covers
+    months = serializers.IntegerField(min_value=1, required=False, allow_null=True)
+    # NEW: for yearly mode – which installment index (0‑based)
+    installment_index = serializers.IntegerField(
+        min_value=0, required=False, allow_null=True
+    )
 
 
 class RentalAgreementDetailSerializer(serializers.ModelSerializer):
@@ -81,3 +87,19 @@ class RentalAgreementDetailSerializer(serializers.ModelSerializer):
             return Decimal(0)
         else:
             return Decimal(obj.installment_status.get("total_remaining", 0))
+
+
+class SubscriptionPlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubscriptionPlan
+        fields = [
+            "id",
+            "name",
+            "description",
+            "monthly_price",
+            "features",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]

@@ -2,12 +2,10 @@ from typing import List, Optional, Dict, Any
 from django.db import transaction
 from django.utils import timezone
 import logging
-import random
 from .models import Tenant
 from .repositories import TenantRepository
 from apps.core.base_service import BaseService
-from apps.rentals.models import Lease, Payment
-from apps.properties.models import Property, PropertyOwnership
+from apps.properties.models import Property
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +15,7 @@ class TenantService(BaseService[Tenant]):
         super().__init__(TenantRepository())
 
     def get_tenants_for_property(self, property_id):
+        """Get all tenants that have agreements for this property."""
         logger.info("Get tenants for property with id %s", property_id)
         return self.repository.find_by_property(property_id)
 
@@ -34,32 +33,22 @@ class TenantService(BaseService[Tenant]):
 
         # Landlord - get tenants from owned properties
         if hasattr(user, "owner_profile"):
-            owned_property_ids = Property.objects.filter(
-                ownership_records__owner=user.owner_profile
-            ).values_list("id", flat=True)
-
-            return Tenant.objects.filter(
-                leases__unit__property__id__in=owned_property_ids
-            ).distinct()
+            return self.repository.find_by_owner(user.owner_profile)
 
         # Manager - get tenants from managed properties
         if hasattr(user, "manager_profile"):
-            managed_property_ids = Property.objects.filter(
-                managers=user.manager_profile
-            ).values_list("id", flat=True)
+            return self.repository.find_by_manager(user.manager_profile)
 
-            return Tenant.objects.filter(
-                leases__unit__property__id__in=managed_property_ids
-            ).distinct()
-
-        # Tenant or other - return empty
-        return Tenant.objects.none()
+        return []
 
     def get_tenant_details(self, tenant_id, user):
         """
-        Get detailed tenant information including lease history and payments.
+        Get detailed tenant information including agreement history and payments.
         Includes permission check to ensure user can view this tenant.
         """
+        from apps.payments.models import RentalAgreement, Payment
+        from apps.rentals.models import MaintenanceRequest
+
         tenant = self.get_by_id(tenant_id)
         if not tenant:
             return None
@@ -67,17 +56,17 @@ class TenantService(BaseService[Tenant]):
         # Permission check
         if not user.is_superuser:
             if hasattr(user, "owner_profile"):
-                # Check if tenant is in landlord's properties
-                has_access = Lease.objects.filter(
-                    lease_tenants__tenant=tenant,
+                # Check if tenant has agreement in landlord's properties
+                has_access = RentalAgreement.objects.filter(
+                    tenant=tenant,
                     unit__property__ownership_records__owner=user.owner_profile,
                 ).exists()
                 if not has_access:
                     return None
             elif hasattr(user, "manager_profile"):
-                # Check if tenant is in managed properties
-                has_access = Lease.objects.filter(
-                    lease_tenants__tenant=tenant,
+                # Check if tenant has agreement in managed properties
+                has_access = RentalAgreement.objects.filter(
+                    tenant=tenant,
                     unit__property__managers=user.manager_profile,
                 ).exists()
                 if not has_access:
@@ -93,59 +82,59 @@ class TenantService(BaseService[Tenant]):
         # Build detailed response
         return {
             "tenant": tenant,
-            "active_lease": self._get_active_lease(tenant),
-            "lease_history": self._get_lease_history(tenant),
+            "active_agreement": self._get_active_agreement(tenant),
+            "agreement_history": self._get_agreement_history(tenant),
             "payment_history": self._get_payment_history(tenant),
             "maintenance_requests": self._get_maintenance_requests(tenant),
         }
 
-    def _get_active_lease(self, tenant):
-        """Get tenant's current active lease"""
-        from apps.rentals.models import LeaseTenant
+    def _get_active_agreement(self, tenant):
+        """Get tenant's current active rental agreement."""
+        from apps.payments.models import RentalAgreement
 
-        lease_tenant = (
-            LeaseTenant.objects.filter(tenant=tenant, lease__status="active")
-            .select_related("lease__unit__property", "lease__payment_term")
+        return (
+            RentalAgreement.objects.filter(tenant=tenant, is_active=True)
+            .select_related("unit__property", "payment_plan")
             .first()
         )
 
-        if lease_tenant:
-            return lease_tenant.lease
-        return None
+    def _get_agreement_history(self, tenant):
+        """Get all rental agreements for this tenant."""
+        from apps.payments.models import RentalAgreement
 
-    def _get_lease_history(self, tenant):
-        """Get all leases for this tenant"""
-        from apps.rentals.models import LeaseTenant
-
-        lease_tenants = (
-            LeaseTenant.objects.filter(tenant=tenant)
-            .select_related("lease__unit__property", "lease__payment_term")
-            .order_by("-lease__created_at")
+        return list(
+            RentalAgreement.objects.filter(tenant=tenant)
+            .select_related("unit__property", "payment_plan")
+            .order_by("-created_at")
         )
 
-        return [lt.lease for lt in lease_tenants]
-
     def _get_payment_history(self, tenant):
-        """Get all payments made by this tenant"""
-        return (
-            Payment.objects.filter(tenant=tenant)
-            .select_related("lease")
+        """Get all payments made by this tenant."""
+        from apps.payments.models import Payment
+
+        return list(
+            Payment.objects.filter(agreement__tenant=tenant)
+            .select_related("agreement__unit__property")
             .order_by("-payment_date")[:20]
-        )  # Last 20 payments
+        )
 
     def _get_maintenance_requests(self, tenant):
-        """Get maintenance requests submitted by this tenant"""
+        """Get maintenance requests submitted by this tenant."""
         from apps.rentals.models import MaintenanceRequest
 
-        return MaintenanceRequest.objects.filter(tenant=tenant).order_by("-created_at")[
-            :10
-        ]  # Last 10 requests
+        return list(
+            MaintenanceRequest.objects.filter(tenant=tenant).order_by("-created_at")[
+                :10
+            ]
+        )
 
     def search_tenant_by_id(self, id_number: str, user) -> Optional[Dict[str, Any]]:
         """
         Search for a tenant by ID number.
         RESPECTS: is_discoverable flag.
         """
+        from apps.payments.models import RentalAgreement
+
         tenant = self.repository.find_by_id_number(id_number)
 
         if not tenant:
@@ -157,6 +146,9 @@ class TenantService(BaseService[Tenant]):
             )
             return None
 
+        has_active_agreement = RentalAgreement.objects.filter(
+            tenant=tenant, is_active=True
+        ).exists()
         reputation_summary = self._get_reputation_summary(tenant)
 
         return {
@@ -165,40 +157,44 @@ class TenantService(BaseService[Tenant]):
             "full_name": tenant.user.get_full_name(),
             "email": tenant.user.email,
             "phone": (
-                str(tenant.user.phone_number)
-                if hasattr(tenant.user, "phone_number")
+                str(tenant.user.profile.phone_number)
+                if hasattr(tenant.user, "profile") and tenant.user.profile.phone_number
                 else None
             ),
             "id_number_masked": self._mask_id_number(tenant.id_number),
-            "current_status": self._get_tenant_status(tenant),
+            "current_status": "occupied" if has_active_agreement else "available",
             "is_discoverable": tenant.is_discoverable,
             "is_verified": tenant.is_verified,
             "reputation": reputation_summary,
         }
 
     def _get_reputation_summary(self, tenant: Tenant) -> Dict[str, Any]:
-        """Calculate tenant reputation based on payment history"""
-        total_leases = Lease.objects.filter(lease_tenants__tenant=tenant).count()
-        total_payments = Payment.objects.filter(tenant=tenant).count()
+        """Calculate tenant reputation based on payment history."""
+        from apps.payments.models import RentalAgreement, Payment
+
+        total_agreements = RentalAgreement.objects.filter(tenant=tenant).count()
+        total_payments = Payment.objects.filter(agreement__tenant=tenant).count()
         completed_payments = Payment.objects.filter(
-            tenant=tenant, status="completed"
+            agreement__tenant=tenant, status="completed"
         ).count()
 
         score = 50
         if total_payments > 0:
             score = int((completed_payments / total_payments) * 100)
 
-        has_eviction = Lease.objects.filter(
-            lease_tenants__tenant=tenant,
-            status="terminated",
-            termination_reason__icontains="eviction",
+        # Check for terminated agreements with issues
+        terminated_agreements = RentalAgreement.objects.filter(
+            tenant=tenant, is_active=False
+        )
+        has_eviction = terminated_agreements.filter(
+            termination_reason_text__icontains="eviction"
         ).exists()
 
         return {
             "score": score,
             "max_score": 100,
             "level": "Gold" if score > 80 else "Silver" if score > 60 else "Bronze",
-            "total_leases": total_leases,
+            "total_leases": total_agreements,
             "total_payments": total_payments,
             "completed_payments": completed_payments,
             "late_payments": total_payments - completed_payments,
@@ -215,12 +211,6 @@ class TenantService(BaseService[Tenant]):
         if len(id_number) <= 4:
             return "***"
         return f"{id_number[:-4]}***{id_number[-4:]}"
-
-    def _get_tenant_status(self, tenant: Tenant) -> str:
-        has_active_lease = Lease.objects.filter(
-            lease_tenants__tenant=tenant, status="active"
-        ).exists()
-        return "occupied" if has_active_lease else "available"
 
     @transaction.atomic
     def update_discovery_status(

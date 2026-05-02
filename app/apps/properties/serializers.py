@@ -39,6 +39,13 @@ class OwnerSerializer(serializers.ModelSerializer):
     user_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(), source="user", write_only=True
     )
+    subscription_plan = serializers.StringRelatedField(read_only=True)
+    subscription_plan_id = serializers.PrimaryKeyRelatedField(
+        source="subscription_plan", read_only=True
+    )
+    subscription_status = serializers.CharField(read_only=True)
+    subscription_start_date = serializers.DateField(read_only=True)
+    subscription_end_date = serializers.DateField(read_only=True)
 
     class Meta:
         model = Owner
@@ -56,8 +63,17 @@ class OwnerSerializer(serializers.ModelSerializer):
             "tax_id",
             "created_at",
             "updated_at",
+            "subscription_plan",
+            "subscription_plan_id",
+            "subscription_status",
+            "subscription_start_date",
+            "subscription_end_date",
         ]
         read_only_fields = ["created_at", "updated_at"]
+
+
+class OwnerSubscriptionSerializer(serializers.Serializer):
+    subscription_plan_id = serializers.UUIDField()
 
 
 class ManagerSerializer(serializers.ModelSerializer):
@@ -83,6 +99,37 @@ class ManagerSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
+
+
+# apps/properties/serializers.py
+
+
+class OwnerSubscriptionDetailSerializer(serializers.Serializer):
+    subscription_plan = serializers.SerializerMethodField()
+    status = serializers.CharField(source="subscription_status")
+    start_date = serializers.DateField(source="subscription_start_date")
+    end_date = serializers.DateField(source="subscription_end_date")
+
+    def get_subscription_plan(self, obj):
+        plan = obj.subscription_plan
+        if not plan:
+            return None
+        return {
+            "id": str(plan.id),
+            "name": plan.name,
+            "monthly_price": float(plan.monthly_price),
+            "features": plan.features,
+            "max_properties": plan.max_properties,
+            "max_units_total": plan.max_units_total,
+            "max_units_per_property": plan.max_units_per_property,
+            "has_api_access": plan.has_api_access,
+            "has_advanced_reports": plan.has_advanced_reports,
+            "has_priority_support": plan.has_priority_support,
+            "has_bulk_sms": plan.has_bulk_sms,
+        }
+
+    class Meta:
+        fields = ["subscription_plan", "status", "start_date", "end_date"]
 
 
 # Create your views here.

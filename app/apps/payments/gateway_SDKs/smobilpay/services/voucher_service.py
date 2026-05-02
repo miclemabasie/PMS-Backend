@@ -1,8 +1,8 @@
 import requests
 from typing import List
-from apps.payments.gateways.smobilpay.models.voucher_model import VoucherModel
-from apps.payments.gateways.smobilpay.s3_api_auth import S3ApiAuth
-from apps.payments.gateways.smobilpay.configuration import (
+from apps.payments.gateway_SDKs.smobilpay.models.voucher_model import VoucherModel
+from apps.payments.gateway_SDKs.smobilpay.s3_api_auth import S3ApiAuth
+from apps.payments.gateway_SDKs.smobilpay.configuration import (
     Configuration,
 )  # Import the configuration class
 import logging

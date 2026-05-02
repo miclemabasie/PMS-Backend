@@ -1,10 +1,43 @@
 from .models import Owner, Manager, Property, PropertyOwnership, Unit
 from apps.core.base_repository import DjangoRepository
+from datetime import timedelta
+from django.utils import timezone
+
+# apps/properties/repositories.py
+# apps/properties/repositories.py
+from django.utils import timezone
+from datetime import timedelta
 
 
 class OwnerRepository(DjangoRepository[Owner]):
     def __init__(self):
         super().__init__(Owner)
+
+    def update_subscription(
+        self, owner, subscription_plan, status="active", start_date=None, end_date=None
+    ):
+        """
+        Update owner's subscription details.
+        If start_date/end_date not provided, default to today and today+30 days.
+        """
+        if start_date is None:
+            start_date = timezone.now().date()
+        if end_date is None:
+            end_date = start_date + timedelta(days=30)
+
+        owner.subscription_plan = subscription_plan
+        owner.subscription_status = status
+        owner.subscription_start_date = start_date
+        owner.subscription_end_date = end_date
+        owner.save(
+            update_fields=[
+                "subscription_plan",
+                "subscription_status",
+                "subscription_start_date",
+                "subscription_end_date",
+            ]
+        )
+        return owner
 
 
 class ManagerRepository(DjangoRepository[Manager]):

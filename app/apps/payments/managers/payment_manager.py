@@ -4,6 +4,7 @@ from decimal import Decimal
 from datetime import timedelta
 from typing import Dict, Any, Optional, Tuple
 from django.db import transaction
+from datetime import datetime
 from django.utils import timezone
 from django.conf import settings
 
@@ -13,6 +14,23 @@ from apps.payments.utils.rent_calculator import RentCalculator
 from apps.properties.models import PaymentConfiguration
 
 logger = logging.getLogger(__name__)
+
+
+def make_json_serializable(obj: Any) -> Any:
+    """
+    Recursively convert Decimal to string (or float) and handle other non‑serializable types.
+    """
+    if isinstance(obj, Decimal):
+        return str(obj)  # store as string to preserve precision
+    elif isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [make_json_serializable(v) for v in obj]
+    elif isinstance(obj, tuple):
+        return tuple(make_json_serializable(v) for v in obj)
+    elif isinstance(obj, (datetime, timezone.datetime)):
+        return obj.isoformat()
+    return obj
 
 
 class PaymentManager:
@@ -31,10 +49,9 @@ class PaymentManager:
             settings, "DEBUG", False
         )
 
-    # ------------------------------------------------------------------
+    # --------------------------------------------------
     # Phase 1: Initiate payment (no agreement changes)
-    # ------------------------------------------------------------------
-
+    # --------------------------------------------------
     @transaction.atomic
     def initiate_payment(
         self,
@@ -42,78 +59,148 @@ class PaymentManager:
         payment_method: str,
         phone_number: str = None,
         provider: str = None,
+        months: int = None,  # for monthly
+        installment_index: int = None,  # for yearly
     ) -> Payment:
         """
         Step 1: Create pending payment record and call gateway execute.
-        Returns Payment object with status='pending' and ptn stored in gateway_reference.
-        Does NOT modify agreement coverage or installments.
+        Returns Payment object with status='pending'.
         """
         amount = Decimal(str(amount))
 
-        # 1. Validate agreement state
         if not self.agreement.is_active:
             raise ValueError("Agreement is not active.")
 
-        # 2. Get config and calculate expected total (for optional validation)
-        if not self.config and not self.is_staging:
-            raise ValueError("No payment configuration for this property.")
-        if not self.config and self.is_staging:
-            self.config = PaymentConfiguration.objects.create(
-                property=self.unit.property
-            )
+        if self.plan.mode == "monthly":
+            # Validate monthly payment
+            monthly_rent = self.unit.monthly_rent
+            if not monthly_rent:
+                raise ValueError("Monthly rent not set for this unit.")
 
-        net_rent = self._get_net_rent()
-        if net_rent is None:
-            raise ValueError("Cannot determine net rent for this payment.")
+            if months is None:
+                single_month_total = self._get_tenant_total_for_net_rent(monthly_rent)
+                months = round(amount / single_month_total)
+                if months < 1 or months != amount / single_month_total:
+                    raise ValueError(
+                        "Unable to determine number of months from amount. Please provide 'months' field."
+                    )
+
+            allowed_terms = (
+                self.plan.allowed_monthly_terms
+                if self.plan.allowed_monthly_terms
+                else list(range(1, self.plan.max_months + 1))
+            )
+            if months not in allowed_terms:
+                raise ValueError(
+                    f"Payment for {months} month(s) not allowed. Allowed terms: {allowed_terms}"
+                )
+
+            net_rent = monthly_rent * months
+            expected_total = self._get_tenant_total_for_net_rent(net_rent)
+            if amount != expected_total:
+                raise ValueError(
+                    f"Amount must be exactly {expected_total} XAF for {months} month(s). You entered {amount} XAF."
+                )
+            self._pending_months = months
+
+        else:  # yearly mode
+            status = self.agreement.installment_status
+            installments = status.get("installments", [])
+            if installment_index is None:
+                installment_index = status.get("next_installment_index")
+            if installment_index is None or installment_index >= len(installments):
+                raise ValueError("No pending installment found or invalid index.")
+
+            inst = installments[installment_index]
+            if inst["status"] != "pending":
+                raise ValueError(f"Installment {installment_index} is already paid.")
+
+            due_amount = Decimal(inst["remaining"])
+            if not self.plan.allow_custom_amount and amount != due_amount:
+                raise ValueError(
+                    f"Must pay exactly {due_amount} XAF for this installment."
+                )
+            if amount > due_amount and not self.plan.allow_custom_amount:
+                raise ValueError(f"Amount exceeds installment due ({due_amount} XAF).")
+
+            net_rent = due_amount
+            self._pending_installment_index = installment_index
+
+        # Get config and calculate fees
+        config = self._get_payment_config()
+        if not config and not self.is_staging:
+            raise ValueError("Payment configuration missing for this property.")
+        if not config and self.is_staging:
+            config = PaymentConfiguration.objects.create(property=self.unit.property)
 
         payout_method = self._get_landlord_payout_method()
-        calculator = RentCalculator(net_rent, self.config, payout_method)
+        calculator = RentCalculator(net_rent, config, payout_method)
         fee_breakdown = calculator.get_breakdown()
         expected_total = fee_breakdown["tenant_total"]
 
-        if not self.plan.allow_custom_amount and amount != expected_total:
+        if amount != expected_total:
             raise ValueError(
-                f"Payment amount must be exactly {expected_total} XAF. You entered {amount} XAF."
+                f"Amount mismatch after fee calculation. Expected {expected_total}, got {amount}."
             )
-        if self.plan.allow_custom_amount and amount < net_rent:
-            raise ValueError(f"Amount cannot be less than net rent {net_rent} XAF.")
 
-        # 3. Execute gateway call (gets ptn, status pending)
+        # Execute gateway
         gateway_result = self._execute_gateway(
             amount, payment_method, phone_number, provider
         )
-        if not gateway_result["success"]:
+        if not gateway_result.get("success"):
             raise ValueError(
                 f"Gateway initiation failed: {gateway_result.get('error')}"
             )
 
-        # 4. Create payment record with status pending, no agreement updates yet
+        # Convert to JSON‑serializable (no Decimal)
+        raw_response = make_json_serializable(gateway_result.get("raw_response", {}))
+        fee_breakdown_serializable = make_json_serializable(fee_breakdown)
+
+        # 🔥 FIX: Use today’s date as placeholder for period_start/end (non‑null constraint)
+        today = timezone.now().date()
+
+        # Create pending payment
         payment = Payment.objects.create(
             agreement=self.agreement,
             amount=amount,
             months_covered=None,
-            period_start=None,
-            period_end=None,
+            period_start=today,  # placeholder, will be overwritten on completion
+            period_end=today,  # placeholder, will be overwritten on completion
             payment_method=payment_method,
-            status="pending",
             status="pending",
             transaction_id=gateway_result.get("transaction_id", str(uuid.uuid4())),
             mobile_phone=phone_number or "",
             mobile_provider=provider or "",
-            gateway_response=gateway_result.get("raw_response", {}),
-            gateway_reference=gateway_result.get("gateway_reference", ""),  # stores ptn
+            gateway_response=raw_response,
+            gateway_reference=gateway_result.get("gateway_reference", ""),
             net_landlord_amount=None,
-            fee_breakdown=fee_breakdown,
+            fee_breakdown=fee_breakdown_serializable,
         )
-        logger.info(
-            f"Payment {payment.id} initiated for agreement {self.agreement.id} with ptn {payment.gateway_reference}"
-        )
+
+        # Store months or installment index (optional)
+        if self.plan.mode == "monthly":
+            payment.months_covered = months
+            payment.save(update_fields=["months_covered"])
+        else:
+            payment.notes = f"installment_index:{installment_index}"
+            payment.save(update_fields=["notes"])
+
         return payment
 
-    # ------------------------------------------------------------------
-    # Phase 2: Verify and complete payment
-    # ------------------------------------------------------------------
+    def _get_tenant_total_for_net_rent(self, net_rent: Decimal) -> Decimal:
+        """Helper to compute tenant total including fees"""
+        config = self._get_payment_config()
+        payout_method = self._get_landlord_payout_method()
+        if not config and not self.is_staging:
+            return net_rent
+        if not config and self.is_staging:
+            config = PaymentConfiguration.objects.create(property=self.unit.property)
+        calculator = RentCalculator(net_rent, config, payout_method)
+        return calculator.get_tenant_total()
 
+    # --------------------------------------------------
+    # Phase 2: Verify and complete payment
+    # --------------------------------------------------
     @transaction.atomic
     def verify_and_complete(self, payment: Payment) -> Dict[str, Any]:
         """
@@ -121,17 +208,16 @@ class PaymentManager:
         If success, update agreement coverage/installments and mark payment completed.
         Returns status dict.
         """
-        if payment.current_status != "pending":
-            return {"status": payment.current_status, "message": "Already processed"}
+        if payment.status != "pending":
+            return {"status": payment.status, "message": "Already processed"}
 
         # Call gateway verification
         verification = self._verify_gateway_payment(payment.gateway_reference)
         if not verification["success"]:
             # Payment still pending or failed
             if verification.get("status") == "failed":
-                payment.current_status = "failed"
                 payment.status = "failed"
-                payment.save(update_fields=["current_status", "status"])
+                payment.save(update_fields=["status"])
                 return {"status": "failed", "message": verification.get("error")}
             return {"status": "pending", "message": "Waiting for user confirmation"}
 
@@ -163,13 +249,12 @@ class PaymentManager:
 
         # Update payment record with completed info
         payment.status = "completed"
-        payment.current_status = "completed"
-        payment.processed_at = timezone.now()
         payment.period_start = period_start
         payment.period_end = period_end
         payment.months_covered = months_covered
         payment.net_landlord_amount = landlord_net
-        payment.fee_breakdown = fee_breakdown
+        # Store fee breakdown as JSON-serializable
+        payment.fee_breakdown = make_json_serializable(fee_breakdown)
         payment.save()
 
         logger.info(
@@ -177,9 +262,9 @@ class PaymentManager:
         )
         return {"status": "completed", "payment_id": str(payment.id)}
 
-    # ------------------------------------------------------------------
+    # --------------------------------------------------
     # Internal helpers
-    # ------------------------------------------------------------------
+    # --------------------------------------------------
 
     def _get_payment_config(self) -> Optional[PaymentConfiguration]:
         return getattr(self.unit.property, "payment_config", None)
@@ -212,66 +297,63 @@ class PaymentManager:
     def _execute_gateway(
         self, amount: Decimal, method: str, phone: str, provider: str
     ) -> Dict:
-        """Call gateway to execute payment, returns ptn (gateway_reference)."""
-        if self.is_staging or method not in ["mtn_momo", "orange_money"]:
-            processor = DummyPaymentProcessor()
-            if method in ["mtn_momo", "orange_money"] and phone and provider:
-                result = processor.initiate_payment(amount, phone, provider)
-            else:
-                result = {
-                    "success": True,
-                    "transaction_id": str(uuid.uuid4()),
-                    "status": "completed",
-                }
-            return {
-                "success": result.get("success", False),
-                "transaction_id": result.get("transaction_id"),
-                "gateway_reference": result.get("reference", str(uuid.uuid4())),
-                "raw_response": result,
-            }
-        else:
-            try:
-                from apps.payments.gateway_SDKs.gateway_factory import gateway_factory
-
-                gateway = gateway_factory.create_gateway("smobilpay", {})
-                intent = gateway.create_payment_intent(
-                    amount=amount,
-                    currency="XAF",
-                    payment_method=method,
-                    customer_data={"phone_number": phone},
-                    metadata={"agreement_id": str(self.agreement.id)},
-                )
-                if intent.get("status") == "failed":
-                    return {"success": False, "error": intent.get("error")}
-                execution = gateway.execute_payment(
-                    gateway_reference=intent["gateway_reference"],
-                    customer_authorization={"phone_number": phone},
-                )
-                if execution.get("status") in ["pending", "completed"]:
-                    return {
-                        "success": True,
-                        "transaction_id": execution.get("gateway_transaction_id"),
-                        "gateway_reference": execution.get(
-                            "gateway_transaction_id"
-                        ),  # ptn
-                        "raw_response": execution,
-                    }
-                else:
-                    return {"success": False, "error": execution.get("error")}
-            except Exception as e:
-                logger.exception("Gateway execution failed")
-                return {"success": False, "error": str(e)}
-
-    def _verify_gateway_payment(self, ptn: str) -> Dict:
-        """Poll gateway for payment status using ptn."""
-        if self.is_staging:
-            # In staging, we can auto‑complete after a short delay (or always success)
-            return {"success": True, "status": "success"}
+        """Call SmobilPay gateway to execute payment, returns ptn (gateway_reference)."""
         try:
+            from django.conf import settings
             from apps.payments.gateway_SDKs.gateway_factory import gateway_factory
 
-            gateway = gateway_factory.create_gateway("smobilpay", {})
+            gateway_config = getattr(settings, "SMOBILPAY_CONFIG", {})
+            if not gateway_config.get("api_url") or not gateway_config.get(
+                "public_token"
+            ):
+                logger.error("Missing SmobilPay configuration")
+                return {"success": False, "error": "Payment gateway not configured"}
+
+            gateway = gateway_factory.create_gateway("smobilpay", gateway_config)
+
+            intent = gateway.create_payment_intent(
+                amount=amount,
+                currency="XAF",
+                payment_method=method,
+                customer_data={"phone_number": phone},
+                metadata={"agreement_id": str(self.agreement.id)},
+            )
+            intent = make_json_serializable(intent)
+            if intent.get("status") == "failed":
+                return {"success": False, "error": intent.get("error")}
+
+            execution = gateway.execute_payment(
+                gateway_reference=intent["gateway_reference"],
+                customer_authorization={"phone_number": phone},
+            )
+            execution = make_json_serializable(execution)
+
+            if execution.get("status") in ["pending", "completed"]:
+                return {
+                    "success": True,
+                    "transaction_id": execution.get("gateway_transaction_id"),
+                    "gateway_reference": execution.get("gateway_transaction_id"),  # ptn
+                    "raw_response": execution,
+                }
+            else:
+                return {"success": False, "error": execution.get("error")}
+
+        except Exception as e:
+            logger.exception("Gateway execution failed")
+            return {"success": False, "error": str(e)}
+
+    def _verify_gateway_payment(self, ptn: str) -> Dict:
+        """Poll SmobilPay gateway for payment status using ptn."""
+        try:
+            from django.conf import settings
+            from apps.payments.gateway_SDKs.gateway_factory import gateway_factory
+
+            gateway_config = getattr(settings, "SMOBILPAY_CONFIG", {})
+            gateway = gateway_factory.create_gateway("smobilpay", gateway_config)
+
             status_response = gateway.verify_payment(gateway_reference=ptn)
+            status_response = make_json_serializable(status_response)
+
             if status_response.get("status") in ["success", "completed"]:
                 return {"success": True, "status": "success"}
             elif status_response.get("status") in ["failed", "error"]:
@@ -282,6 +364,7 @@ class PaymentManager:
                 }
             else:
                 return {"success": False, "status": "pending"}
+
         except Exception as e:
             logger.exception("Verification failed")
             return {"success": False, "error": str(e)}
@@ -289,7 +372,6 @@ class PaymentManager:
     def _update_agreement(
         self, amount: Decimal, net_rent: Decimal
     ) -> Tuple[datetime.date, datetime.date, Optional[Decimal]]:
-        """Exactly the same logic as your original make_payment (monthly/yearly)."""
         if self.plan.mode == "monthly":
             return self._update_monthly_coverage(amount, net_rent)
         else:

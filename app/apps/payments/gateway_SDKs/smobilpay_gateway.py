@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 from . import PaymentGatewayInterface
-from clients.smobilpay_client import SmobilPayClient
+from apps.payments.gateway_SDKs.clients.smobilpay_client import SmobilPayClient
 
 logger = logging.getLogger(__name__)
 

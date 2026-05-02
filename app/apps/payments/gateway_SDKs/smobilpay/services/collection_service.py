@@ -1,8 +1,8 @@
 import requests
 import json
-from apps.payments.gateways.smobilpay.models.collection_model import CollectionModel
-from apps.payments.gateways.smobilpay.s3_api_auth import S3ApiAuth
-from apps.payments.gateways.smobilpay.configuration import Configuration
+from apps.payments.gateway_SDKs.smobilpay.models.collection_model import CollectionModel
+from apps.payments.gateway_SDKs.smobilpay.s3_api_auth import S3ApiAuth
+from apps.payments.gateway_SDKs.smobilpay.configuration import Configuration
 import logging
 
 
