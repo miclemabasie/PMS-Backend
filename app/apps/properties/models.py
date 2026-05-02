@@ -452,25 +452,28 @@ class PaymentConfiguration(models.Model):
     pricing_model = models.CharField(
         max_length=20,
         choices=[
-            ("per_transaction", "Per-transaction"),
+            ("per_transaction", "Per‑transaction"),
             ("subscription", "Subscription"),
         ],
         default="per_transaction",
     )
-    monthly_subscription_fee = models.DecimalField(
-        max_digits=10, decimal_places=0, default=0
+    subscription_plan = models.ForeignKey(
+        "payments.SubscriptionPlan",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Required if pricing_model = 'subscription'",
     )
     platform_fee_payer = models.CharField(
         max_length=10,
-        choices=[("tenant", "Tenant"), ("landlord", "Landlord"), ("split", "Split")],
+        choices=[("tenant", "Tenant"), ("landlord", "Landlord"), ("split", "Shared")],
         default="tenant",
     )
     gateway_fee_payer = models.CharField(
         max_length=10,
-        choices=[("tenant", "Tenant"), ("landlord", "Landlord"), ("split", "Split")],
+        choices=[("tenant", "Tenant"), ("landlord", "Landlord"), ("split", "Shared")],
         default="tenant",
     )
-    # Optional per-property gateway methods override (if empty, use global)
     gateway_methods = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
