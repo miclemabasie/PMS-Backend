@@ -66,3 +66,44 @@ class PaymentType(models.TextChoices):
     FEE = "fee", _("Fee / penalty")
     UTILITY = "utility", _("Utility bill")
     OTHER = "other", _("Other")
+
+
+class PlatformSettings(models.Model):
+    """Singleton model for global fee configuration."""
+
+    platform_fee_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=1.0
+    )
+    platform_fee_cap = models.PositiveIntegerField(default=1000)
+    gateway_fee_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=2.0
+    )
+    fixed_extra_fee = models.DecimalField(max_digits=10, decimal_places=0, default=0)
+
+    # Which payment methods incur gateway fee? (global default)
+    gateway_methods = models.JSONField(default=list, blank=True)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Platform Settings"
+        verbose_name_plural = "Platform Settings"
+
+    def save(self, *args, **kwargs):
+        # Ensure only one row
+        if not self.pk and PlatformSettings.objects.exists():
+            raise Exception("Only one PlatformSettings instance allowed")
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_settings(cls):
+        obj, _ = cls.objects.get_or_create(
+            defaults={
+                "platform_fee_percent": 1.0,
+                "platform_fee_cap": 1000,
+                "gateway_fee_percent": 2.0,
+                "fixed_extra_fee": 0,
+                "gateway_methods": ["mtn_momo", "orange_money"],
+            }
+        )
+        return obj

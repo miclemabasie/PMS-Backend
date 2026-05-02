@@ -17,6 +17,8 @@ from typing import Optional, List, Dict, Any
 from .permissions import CanManageRentalAgreement
 from django.core.exceptions import PermissionDenied
 from .permissions import user_can_manage_agreement
+from apps.properties.models import PaymentConfiguration
+from .utils.rent_calculator import RentCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -164,20 +166,27 @@ class RentalAgreementService(BaseService[RentalAgreement]):
 
     def get_available_payment_options(self, agreement: RentalAgreement) -> list:
         plan = agreement.payment_plan
+        config = agreement.unit.property.payment_config
+        if not config:
+            config = PaymentConfiguration.objects.create(
+                property=agreement.unit.property
+            )  # fallback
+        landlord_payout_method = (
+            agreement.unit.property.get_payout_owner().preferred_payout_method
+        )
+
         if plan.mode == "monthly":
             options = []
-            terms = (
-                plan.allowed_monthly_terms
-                if plan.allowed_monthly_terms
-                else range(1, plan.max_months + 1)
-            )
+            terms = plan.allowed_monthly_terms or range(1, plan.max_months + 1)
             for months in terms:
-                amount = agreement.unit.monthly_rent * months
+                net_rent = agreement.unit.monthly_rent * months
+                calc = RentCalculator(net_rent, config, landlord_payout_method)
+                tenant_total = calc.get_tenant_total()
                 options.append(
                     {
                         "type": "monthly",
                         "months": months,
-                        "amount": str(amount),
+                        "amount": str(tenant_total),
                     }
                 )
             if plan.allow_custom_amount:

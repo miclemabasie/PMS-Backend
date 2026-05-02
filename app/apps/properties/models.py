@@ -446,82 +446,32 @@ class UnitImage(models.Model):
 
 
 class PaymentConfiguration(models.Model):
-    """
-    Defines how fees are applied for a property.
-    One configuration per property (auto-created on property save).
-    """
-
-    FEES_PAYER_CHOICES = [
-        ("tenant", "Tenant pays"),
-        ("landlord", "Landlord pays"),
-        ("split", "Shared (50/50)"),
-    ]
-    PRICING_MODEL_CHOICES = [
-        ("per_transaction", "Per‑transaction fees"),
-        ("subscription", "Monthly subscription (no per‑transaction fees)"),
-    ]
-
     property = models.OneToOneField(
         "Property", on_delete=models.CASCADE, related_name="payment_config"
     )
     pricing_model = models.CharField(
-        max_length=20, choices=PRICING_MODEL_CHOICES, default="per_transaction"
+        max_length=20,
+        choices=[
+            ("per_transaction", "Per-transaction"),
+            ("subscription", "Subscription"),
+        ],
+        default="per_transaction",
     )
-
-    # For subscription model
     monthly_subscription_fee = models.DecimalField(
-        max_digits=10,
-        decimal_places=0,
-        default=0,
-        help_text="XAF per month, charged to landlord",
+        max_digits=10, decimal_places=0, default=0
     )
-
-    # For per‑transaction model
-    platform_fee_cap = models.PositiveIntegerField(
-        default=1000, help_text="Maximum platform fee (XAF)"
-    )
-    platform_fee_percent = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        default=1.0,
-        help_text="% of rent (capped by platform_fee_cap)",
-    )
-    gateway_fee_percent = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        default=2.0,
-        help_text="% on the amount disbursed to landlord",
-    )
-    # Who pays which fee?
     platform_fee_payer = models.CharField(
-        max_length=10, choices=FEES_PAYER_CHOICES, default="tenant"
+        max_length=10,
+        choices=[("tenant", "Tenant"), ("landlord", "Landlord"), ("split", "Split")],
+        default="tenant",
     )
     gateway_fee_payer = models.CharField(
-        max_length=10, choices=FEES_PAYER_CHOICES, default="tenant"
+        max_length=10,
+        choices=[("tenant", "Tenant"), ("landlord", "Landlord"), ("split", "Split")],
+        default="tenant",
     )
-
-    # Optional fixed extra fee (e.g., 100 XAF) – always paid by tenant
-    fixed_extra_fee = models.DecimalField(
-        max_digits=10,
-        decimal_places=0,
-        default=0,
-        help_text="Fixed fee added to tenant total",
-    )
-
-    # Payment methods that incur gateway fee (list of strings)
-    gateway_methods = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="e.g., ['mtn_momo', 'orange_money'] – leave empty to never charge gateway fee",
-    )
-
+    # Optional per-property gateway methods override (if empty, use global)
+    gateway_methods = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "Payment Configuration"
-        verbose_name_plural = "Payment Configurations"
-
-    def __str__(self):
-        return f"Payment config for {self.property.name} ({self.pricing_model})"
