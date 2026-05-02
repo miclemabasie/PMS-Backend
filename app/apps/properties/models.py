@@ -187,6 +187,13 @@ class Property(TimeStampedUUIDModel):
             return f"{settings.DOMAIN}{image.image.url}"
         return None
 
+    def get_payout_owner(self):
+        """Return the primary owner (or first owner) for payouts."""
+        ownership = self.ownership_records.filter(is_primary=True).first()
+        if not ownership:
+            ownership = self.ownership_records.first()
+        return ownership.owner if ownership else None
+
 
 class PropertyImage(models.Model):
     property = models.ForeignKey(
