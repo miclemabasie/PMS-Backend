@@ -41,6 +41,12 @@ class TenantService(BaseService[Tenant]):
 
         return []
 
+    def create_tenant(self, **data):
+        tenant = self.repository.create(**data)
+        tenant.user.role = "tenant"
+        tenant.user.save()
+        return tenant
+
     def get_tenant_details(self, tenant_id, user):
         """
         Get detailed tenant information including agreement history and payments.

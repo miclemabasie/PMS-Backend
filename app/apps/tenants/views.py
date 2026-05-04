@@ -28,7 +28,7 @@ class TenantListCreateView(APIView):
     Superadmin can see all tenants.
     """
 
-    permission_classes = [IsAuthenticated, CanManageProperty]
+    permission_classes = [IsAuthenticated]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -49,7 +49,7 @@ class TenantListCreateView(APIView):
     def post(self, request):
         serializer = TenantSerializer(data=request.data)
         if serializer.is_valid():
-            tenant = self.service.create(**serializer.validated_data)
+            tenant = self.service.create_tenant(**serializer.validated_data)
             output = TenantSerializer(tenant)
             return Response(output.data, status=201)
         return Response(serializer.errors, status=400)
