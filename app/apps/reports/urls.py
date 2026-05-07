@@ -7,6 +7,7 @@ from .views import (
     ReceiptDataView,
     MaintenanceSummaryView,
     ExpenseViewSet,
+    MaintenanceAnalyticsView,
 )
 
 app_name = "reports"
@@ -28,5 +29,10 @@ urlpatterns = [
         "maintenance/property/<uuid:property_id>/",
         MaintenanceSummaryView.as_view(),
         name="maintenance-summary",
+    ),
+    path(
+        "maintenance/analytics/<uuid:property_id>/",
+        MaintenanceAnalyticsView.as_view(),
+        name="maintenance-analytics",
     ),
 ]

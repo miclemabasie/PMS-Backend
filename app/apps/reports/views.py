@@ -163,3 +163,28 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                 property__managers=user.manager_profile
             ).distinct()
         return Expense.objects.none()
+
+
+class MaintenanceAnalyticsView(APIView):
+    """
+    GET /api/v1/reports/maintenance/analytics/<property_id>/
+    Returns detailed maintenance costs by vendor, priority, and monthly trend.
+    """
+
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = FinancialReportService()
+
+    def get(self, request, property_id):
+        property_obj = get_object_or_404(Property, id=property_id)
+        self.check_object_permissions(request, property_obj)
+
+        start = request.query_params.get("start")
+        end = request.query_params.get("end")
+        start_date = datetime.fromisoformat(start) if start else None
+        end_date = datetime.fromisoformat(end) if end else None
+
+        data = self.service.get_maintenance_analytics(property_id, start_date, end_date)
+        return Response(data)
