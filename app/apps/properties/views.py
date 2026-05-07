@@ -20,6 +20,10 @@ from .serializers import (
     PropertyImageSerializer,
     UnitImageSerializer,
     OwnerSubscriptionSerializer,
+    PropertyManagerAssignmentSerializer,
+    PropertyManagerListSerializer,
+    PropertyManagerAddSerializer,
+    PropertyManagerRemoveSerializer,
 )
 from .services import (
     PropertyService,
@@ -32,12 +36,6 @@ from .utils import (
     StandardResultsSetPagination,
     UnitResultsSetPagination,
     OwnerResultsSetPagination,
-)
-from .serializers import (
-    PropertyManagerAssignmentSerializer,
-    PropertyManagerListSerializer,
-    PropertyManagerAddSerializer,
-    PropertyManagerRemoveSerializer,
 )
 
 

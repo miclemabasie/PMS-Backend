@@ -9,7 +9,6 @@ urlpatterns = [
     path("api/v1/auth/", include("djoser.urls.jwt")),
     # APIs
     path("api/v1/", include("apps.users.api.urls", namespace="users_api")),
-    path("api/v1/rentals/", include("apps.rentals.urls", namespace="rentals")),
     path("api/v1/tenants/", include("apps.tenants.urls", namespace="tenants")),
     path("api/v1/properties/", include("apps.properties.urls", namespace="properties")),
     path("api/v1/payments/", include("apps.payments.urls", namespace="payments")),
