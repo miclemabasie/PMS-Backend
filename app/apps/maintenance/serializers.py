@@ -98,7 +98,7 @@ class MaintenanceRequestSerializer(serializers.ModelSerializer):
             "description",
             "priority",
             "status",
-            "photos",
+            # "photos",
             "assigned_vendor",
             "assigned_vendor_detail",
             "assigned_vendor_id",

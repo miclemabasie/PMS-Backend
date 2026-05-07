@@ -4,7 +4,6 @@ from .views import ApproveMaintenanceView, CompleteMaintenanceView
 app_name = "maintenance"
 
 urlpatterns = [
-    # apps/maintenance/urls.py
     path(
         "<uuid:pk>/approve/",
         ApproveMaintenanceView.as_view(),

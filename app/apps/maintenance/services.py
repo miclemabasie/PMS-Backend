@@ -6,7 +6,7 @@ from django.utils import timezone
 from apps.core.base_service import BaseService
 from apps.maintenance.models import MaintenanceRequest, Vendor
 from apps.maintenance.repositories import MaintenanceRequestRepository
-from apps.reports.models import Expense
+from apps.reports.models import Expense, ExpenseCategory
 from apps.reports.repositories import ExpenseRepository
 
 
@@ -34,7 +34,7 @@ class MaintenanceService(BaseService[MaintenanceRequest]):
         expense = Expense.objects.create(
             property=request.unit.property,
             unit=request.unit,
-            category=Expense.Category.MAINTENANCE,
+            category=ExpenseCategory.MAINTENANCE,
             amount=actual_cost,
             expense_date=timezone.now().date(),
             description=f"Maintenance: {request.title}",
