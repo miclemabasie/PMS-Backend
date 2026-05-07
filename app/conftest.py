@@ -163,11 +163,6 @@ def unit(property):
 
 
 @pytest.fixture
-def tenant(tenant_user):
-    return baker.make(Tenant, user=tenant_user)
-
-
-@pytest.fixture
 def payment_plan():
     return baker.make(PaymentPlan, mode="monthly", is_active=True)
 
@@ -201,3 +196,112 @@ def payment(rental_agreement):
         net_landlord_amount=97000,
         transaction_id="TXN123",
     )
+
+
+# ========== MAINTENANCE & EXPENSE FIXTURES ==========
+from apps.properties.models import Property, Owner, Manager, Unit, PaymentConfiguration
+from apps.maintenance.models import (
+    Vendor,
+    MaintenanceRequest,
+    MaintenanceStatus,
+    MaintenancePriority,
+)
+from apps.reports.models import Expense
+from apps.tenants.models import Tenant
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
+
+
+@pytest.fixture
+def vendor(db):
+    return baker.make(
+        Vendor,
+        company_name="PlumbFix SARL",
+        contact_name="Jean Plombier",
+        phone="+237699887766",
+        is_active=True,
+    )
+
+
+# Remove the old duplicate tenant fixture and replace with this:
+
+
+@pytest.fixture
+def tenant(db, tenant_user):
+    """Return a Tenant instance linked to tenant_user, creating it only once."""
+    from apps.tenants.models import Tenant
+
+    tenant, _ = Tenant.objects.get_or_create(
+        user=tenant_user,
+        defaults={
+            "id_number": "TN123456",
+            "is_verified": True,
+        },
+    )
+    return tenant
+
+
+@pytest.fixture
+def expense(property, unit, maintenance_request, vendor):
+    """An expense linked to a completed maintenance request."""
+    return baker.make(
+        Expense,
+        property=property,
+        unit=unit,
+        category="maintenance",
+        amount=25000,
+        expense_date=timezone.now().date(),
+        description="Emergency plumbing repair",
+        vendor=vendor,
+        maintenance_request=maintenance_request,
+        receipt=SimpleUploadedFile(
+            "receipt.pdf", b"dummy content", content_type="application/pdf"
+        ),
+        is_reimbursable=False,
+        reimbursed=False,
+    )
+
+
+@pytest.fixture
+def tenant_user(db):
+    user = baker.make(User, email="tenant@example.com", role="tenant", is_active=True)
+    # Ensure tenant profile exists
+    from apps.tenants.models import Tenant
+
+    tenant, _ = Tenant.objects.get_or_create(
+        user=user, defaults={"id_number": "TEST123"}
+    )
+    return user  # return user, but tenant_profile will now exist
+
+
+@pytest.fixture
+def maintenance_request(unit, tenant, vendor):
+    return baker.make(
+        MaintenanceRequest,
+        unit=unit,
+        tenant=tenant,
+        title="Leaky faucet",
+        description="Water dripping from kitchen tap",
+        priority=MaintenancePriority.MEDIUM,
+        status=MaintenanceStatus.SUBMITTED,
+        assigned_vendor=vendor,
+        estimated_cost=25000,
+    )
+
+
+@pytest.fixture
+def manager_user(db):
+    from apps.properties.models import Manager
+
+    user = baker.make(
+        User,
+        email="manager@example.com",
+        username="manager",
+        first_name="Property",
+        last_name="Manager",
+        is_active=True,
+        role="manager",
+    )
+    manager, _ = Manager.objects.get_or_create(user=user)
+    user.manager_profile = manager  # attach for easy access
+    return user
