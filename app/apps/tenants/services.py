@@ -52,8 +52,7 @@ class TenantService(BaseService[Tenant]):
         Get detailed tenant information including agreement history and payments.
         Includes permission check to ensure user can view this tenant.
         """
-        from apps.payments.models import RentalAgreement, Payment
-        from apps.rentals.models import MaintenanceRequest
+        from apps.payments.models import RentalAgreement
 
         tenant = self.get_by_id(tenant_id)
         if not tenant:
@@ -126,7 +125,7 @@ class TenantService(BaseService[Tenant]):
 
     def _get_maintenance_requests(self, tenant):
         """Get maintenance requests submitted by this tenant."""
-        from apps.rentals.models import MaintenanceRequest
+        from apps.maintenance.models import MaintenanceRequest
 
         return list(
             MaintenanceRequest.objects.filter(tenant=tenant).order_by("-created_at")[

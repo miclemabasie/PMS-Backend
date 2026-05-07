@@ -1,5 +1,6 @@
 from django.contrib import admin
-from apps.rentals.admin import DocumentInline
+
+# from apps.documents.admin import DocumentInline
 from .models import Tenant
 
 
@@ -20,4 +21,4 @@ class TenantAdmin(admin.ModelAdmin):
     ]
     autocomplete_fields = ["user"]
     readonly_fields = ["id", "created_at", "updated_at"]
-    inlines = [DocumentInline]
+    # inlines = [DocumentInline]

@@ -55,10 +55,12 @@ LOCAL_APPS = [
     "apps.users.apps.UsersConfig",
     "apps.core.apps.CoreConfig",
     "apps.notifications.apps.NotificationsConfig",
-    "apps.rentals.apps.RentalsConfig",
     "apps.tenants.apps.TenantsConfig",
     "apps.properties.apps.PropertiesConfig",
     "apps.payments.apps.PaymentsConfig",
+    "apps.maintenance.apps.MaintenanceConfig",
+    "apps.documents.apps.DocumentsConfig",
+    "apps.reports.apps.ReportsConfig",
 ]
 
 THIRD_PARTY_APPS = [

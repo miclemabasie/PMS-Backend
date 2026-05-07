@@ -1,5 +1,5 @@
 from rest_framework.permissions import BasePermission
-from apps.rentals.models import Tenant
+from apps.tenants.models import Tenant
 
 
 class IsOwnerOrManagerOrSuperAdmin(BasePermission):

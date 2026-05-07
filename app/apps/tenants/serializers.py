@@ -226,7 +226,7 @@ class TenantDetailSerializer(serializers.Serializer):
         return PaymentSerializer(payments, many=True).data
 
     def get_maintenance_requests(self, obj):
-        from apps.rentals.serializers import MaintenanceRequestSerializer
+        from apps.maintenance.serializers import MaintenanceRequestSerializer
 
         requests = obj.get("maintenance_requests", [])
         return MaintenanceRequestSerializer(requests, many=True).data
