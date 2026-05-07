@@ -56,6 +56,14 @@ class Expense(TimeStampedUUIDModel):
         related_name="expenses",
         verbose_name=_("Vendor"),
     )
+    maintenance_request = models.ForeignKey(
+        "maintenance.MaintenanceRequest",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="expenses",
+        verbose_name=_("Maintenance request"),
+    )
     receipt = models.FileField(
         _("Receipt"), upload_to="expenses/receipts/", blank=True, null=True
     )
