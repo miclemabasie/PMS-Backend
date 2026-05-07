@@ -117,9 +117,15 @@ class TemplateConfig(TimeStampedUUIDModel):
     class Meta:
         verbose_name = _("Template Configuration")
         verbose_name_plural = _("Template Configurations")
-        unique_together = [["landlord", "template_type", "is_default"]]
         indexes = [
             models.Index(fields=["landlord", "template_type"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["landlord", "template_type"],
+                condition=models.Q(is_default=True),
+                name="unique_default_template_per_landlord_type",
+            )
         ]
 
     def __str__(self):
@@ -127,10 +133,12 @@ class TemplateConfig(TimeStampedUUIDModel):
 
     def save(self, *args, **kwargs):
         if self.is_default:
-            # Clear any other default for same landlord and type
-            TemplateConfig.objects.filter(
+            qs = TemplateConfig.objects.filter(
                 landlord=self.landlord,
                 template_type=self.template_type,
                 is_default=True,
-            ).exclude(pk=self.pk).update(is_default=False)
+            )
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            qs.update(is_default=False)
         super().save(*args, **kwargs)

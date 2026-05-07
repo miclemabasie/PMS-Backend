@@ -11,6 +11,8 @@ from apps.maintenance.models import MaintenanceRequest
 from apps.core.base_service import BaseService
 from apps.payments.repositories import PaymentRepository, RentalAgreementRepository
 from apps.reports.repositories import ExpenseRepository
+from django.db.models import F, Value, CharField
+from django.db.models.functions import Cast
 
 
 class FinancialReportService:
@@ -40,19 +42,19 @@ class FinancialReportService:
         # Ensure property exists and user has permission (handled in view)
         # 1. Income from completed payments
         income_qs = Payment.objects.filter(
-            agreement__unit__property_id=property_id,
+            agreement__unit__property__id=property_id,  # note __id at the end
             status="completed",
             payment_date__range=[start_date, end_date],
         )
-
         # 2. Expenses
         expense_qs = Expense.objects.filter(
-            property_id=property_id, expense_date__range=[start_date, end_date]
+            property__id=property_id,  # instead of property_id
+            expense_date__range=[start_date, end_date],
         )
 
         # 3. Maintenance requests (costs)
         maintenance_qs = MaintenanceRequest.objects.filter(
-            unit__property_id=property_id, created_at__range=[start_date, end_date]
+            unit__property__id=property_id, created_at__range=[start_date, end_date]
         )
 
         # Grouping logic
@@ -66,15 +68,24 @@ class FinancialReportService:
 
         # Aggregate income by period
         income_by_period = (
-            income_qs.annotate(period=trunc_func(date_field_income))
+            income_qs.annotate(
+                period=trunc_func(date_field_income),
+                platform_fee_val=Cast(
+                    "fee_breakdown__platform_fee",
+                    output_field=DecimalField(max_digits=10, decimal_places=0),
+                ),
+                gateway_fee_val=Cast(
+                    "fee_breakdown__gateway_fee",
+                    output_field=DecimalField(max_digits=10, decimal_places=0),
+                ),
+            )
             .values("period")
             .annotate(
                 total=Sum("amount"),
-                platform_fees=Sum("fee_breakdown__platform_fee"),
-                gateway_fees=Sum("fee_breakdown__gateway_fee"),
+                platform_fees=Sum("platform_fee_val"),
+                gateway_fees=Sum("gateway_fee_val"),
                 landlord_net=Sum("net_landlord_amount"),
             )
-            .order_by("period")
         )
 
         # Aggregate expenses by period
@@ -140,7 +151,7 @@ class FinancialReportService:
             net_series.append(income_val - expense_val - maint_val)
 
         # Compute occupancy
-        units = Unit.objects.filter(property_id=property_id)
+        units = Unit.objects.filter(property__id=property_id)
         unit_ids = list(units.values_list("id", flat=True))
         occupancy_series = self._compute_occupancy_series(
             unit_ids, start_date, end_date, group_by
@@ -225,6 +236,10 @@ class FinancialReportService:
         property = unit.property
         tenant = agreement.tenant
         owner = property.owners.first()  # Primary owner
+
+        phone = None
+        if hasattr(tenant.user, "profile") and tenant.user.profile.phone_number:
+            phone = str(tenant.user.profile.phone_number)
 
         # Get landlord's receipt template
         from apps.reports.models import TemplateConfig
