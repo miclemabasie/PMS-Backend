@@ -8,6 +8,8 @@ from .views import (
     MaintenanceSummaryView,
 )
 
+app_name = "reports"
+
 router = DefaultRouter()
 router.register(r"templates", TemplateConfigViewSet, basename="template-config")
 
