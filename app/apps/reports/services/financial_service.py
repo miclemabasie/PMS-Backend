@@ -444,3 +444,62 @@ class FinancialReportService:
             )
             occupancy.append(round(occupancy_percent, 2))
         return occupancy
+
+    def get_maintenance_analytics(
+        self,
+        property_id: str,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """Return advanced maintenance analytics including costs by category, vendor, and status over time."""
+        if not start_date:
+            start_date = timezone.now() - timedelta(days=365)
+        if not end_date:
+            end_date = timezone.now()
+
+        # Expenses categorized as maintenance
+        expenses = Expense.objects.filter(
+            property__id=property_id,
+            category="maintenance",
+            expense_date__range=[start_date, end_date],
+        )
+        total_expenses = expenses.aggregate(total=Sum("amount"))["total"] or 0
+
+        # Group by vendor
+        by_vendor = (
+            expenses.values("vendor__company_name", "vendor__contact_name")
+            .annotate(total=Sum("amount"), count=Count("id"))
+            .order_by("-total")
+        )
+
+        # Group by month (time series)
+        monthly = (
+            expenses.annotate(month=TruncMonth("expense_date"))
+            .values("month")
+            .annotate(total=Sum("amount"))
+            .order_by("month")
+        )
+
+        # Maintenance requests with actual costs
+        requests = MaintenanceRequest.objects.filter(
+            unit__property__id=property_id,
+            status="completed",
+            completed_at__range=[start_date, end_date],
+        ).select_related("assigned_vendor")
+
+        total_actual = requests.aggregate(total=Sum("actual_cost"))["total"] or 0
+        by_priority = requests.values("priority").annotate(
+            total=Sum("actual_cost"), count=Count("id")
+        )
+
+        return {
+            "period": {"start": start_date.isoformat(), "end": end_date.isoformat()},
+            "total_expenses": float(total_expenses),
+            "total_maintenance_actual": float(total_actual),
+            "by_vendor": list(by_vendor),
+            "by_priority": list(by_priority),
+            "monthly_trend": [
+                {"month": m["month"].strftime("%Y-%m"), "amount": float(m["total"])}
+                for m in monthly
+            ],
+        }
