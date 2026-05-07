@@ -6,12 +6,14 @@ from .views import (
     OwnerOverviewView,
     ReceiptDataView,
     MaintenanceSummaryView,
+    ExpenseViewSet,
 )
 
 app_name = "reports"
 
 router = DefaultRouter()
 router.register(r"templates", TemplateConfigViewSet, basename="template-config")
+router.register(r"expenses", ExpenseViewSet, basename="expense")
 
 urlpatterns = [
     path("", include(router.urls)),

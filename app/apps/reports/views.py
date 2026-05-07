@@ -13,8 +13,8 @@ from apps.payments.models import Payment
 from apps.properties.permissions import IsOwnerOrManagerOrSuperAdmin
 
 from .services.financial_service import FinancialReportService
-from .models import TemplateConfig
-from .serializers import TemplateConfigSerializer
+from .models import TemplateConfig, Expense
+from .serializers import TemplateConfigSerializer, ExpenseSerializer
 from .repositories import TemplateConfigRepository
 
 
@@ -143,3 +143,23 @@ class MaintenanceSummaryView(APIView):
 
         data = self.service.get_maintenance_summary(property_id, start_date, end_date)
         return Response(data)
+
+
+class ExpenseViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+    serializer_class = ExpenseSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return Expense.objects.all()
+        # For landlords/managers: filter by properties they own/manage
+        if hasattr(user, "owner_profile"):
+            return Expense.objects.filter(
+                property__owners=user.owner_profile
+            ).distinct()
+        if hasattr(user, "manager_profile"):
+            return Expense.objects.filter(
+                property__managers=user.manager_profile
+            ).distinct()
+        return Expense.objects.none()
