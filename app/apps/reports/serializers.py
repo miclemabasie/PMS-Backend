@@ -11,6 +11,7 @@ from apps.properties.serializers import (
 )
 from apps.maintenance.models import Vendor
 from apps.maintenance.serializers import VendorSerializer
+from .models import TemplateConfig
 
 # ----------------------------------------------------------------------
 # Maintenance, Vendor, Expense serializers
@@ -66,3 +67,26 @@ class ExpenseSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
+
+
+class TemplateConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TemplateConfig
+        fields = [
+            "id",
+            "template_type",
+            "selected_layout",
+            "is_default",
+            "logo",
+            "primary_color",
+            "secondary_color",
+            "agency_name",
+            "agency_address",
+            "agency_phone",
+            "agency_email",
+            "footer_text",
+            "show_property_name",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
