@@ -1,0 +1,539 @@
+{
+  "info": {
+    "name": "PMS - Reports & Maintenance",
+    "description": "Complete test suite for Reports (financial, maintenance, templates, expenses) and Maintenance (approve/complete) endpoints.\n\n**Setup:**\n1. Update `base_url` variable to your server (e.g., `http://localhost:8000`).\n2. Run \"Login\" request to obtain JWT token (automatically stored in `access_token`).\n3. Use the token in all subsequent requests (automatically added via Bearer).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "pms-reports-maintenance"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// If we have no token, we'll get one via the login request",
+          "if (!pm.variables.get('access_token') && pm.request.url.toString().indexOf('/auth/jwt/create/') === -1) {",
+          "    console.log('No token – will need to run Login request first');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Auth",
+      "item": [
+        {
+          "name": "Login → Get JWT tokens",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"landlord@example.com\",\n    \"password\": \"testpass\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/jwt/create/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "jwt",
+                "create"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const response = pm.response.json();",
+                  "if (response.access) {",
+                  "    pm.variables.set('access_token', response.access);",
+                  "    console.log('Token stored');",
+                  "}",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token (optional)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"refresh\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/jwt/refresh/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "jwt",
+                "refresh"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Maintenance",
+      "item": [
+        {
+          "name": "Approve a maintenance request",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/maintenance/{{maintenance_request_id}}/approve/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "maintenance",
+                "{{maintenance_request_id}}",
+                "approve"
+              ]
+            },
+            "description": "Changes status from `submitted` to `assigned`. Requires landlord/manager role."
+          },
+          "response": []
+        },
+        {
+          "name": "Complete a maintenance request (with actual cost)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"actual_cost\": 50000,\n    \"notes\": \"Repaired by PlumbFix\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/maintenance/{{maintenance_request_id}}/complete/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "maintenance",
+                "{{maintenance_request_id}}",
+                "complete"
+              ]
+            },
+            "description": "Request must be `in_progress`. Creates an Expense record linked to the maintenance request."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Reports - Financial",
+      "item": [
+        {
+          "name": "Property financial summary (time series)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/property/{{property_id}}/summary/?start=2026-01-01&end=2026-12-31&group_by=month",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "property",
+                "{{property_id}}",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "end",
+                  "value": "2026-12-31"
+                },
+                {
+                  "key": "group_by",
+                  "value": "month"
+                }
+              ]
+            },
+            "description": "Returns income, expenses, maintenance costs, net, and occupancy per month/day."
+          },
+          "response": []
+        },
+        {
+          "name": "Owner overview (across all properties)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/owner/overview/?start=2026-01-01&end=2026-12-31",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "owner",
+                "overview"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "end",
+                  "value": "2026-12-31"
+                }
+              ]
+            },
+            "description": "Aggregated totals and per‑property breakdown for the authenticated landlord."
+          },
+          "response": []
+        },
+        {
+          "name": "Receipt data for a payment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/receipt/{{payment_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "receipt",
+                "{{payment_id}}"
+              ]
+            },
+            "description": "Full payment details + tenant + property + landlord's template config for rendering a receipt."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Reports - Maintenance Analytics",
+      "item": [
+        {
+          "name": "Maintenance summary (costs by status, priority, vendor)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/maintenance/property/{{property_id}}/?start=2026-01-01&end=2026-12-31",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "maintenance",
+                "property",
+                "{{property_id}}"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "end",
+                  "value": "2026-12-31"
+                }
+              ]
+            },
+            "description": "Aggregates maintenance requests + extra expenses (receipts) broken down by status, priority, and vendor."
+          },
+          "response": []
+        },
+        {
+          "name": "Maintenance analytics (advanced – monthly trends)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/maintenance/analytics/{{property_id}}/?start=2026-01-01&end=2026-12-31",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "maintenance",
+                "analytics",
+                "{{property_id}}"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "end",
+                  "value": "2026-12-31"
+                }
+              ]
+            },
+            "description": "Detailed breakdown: total expenses (from `Expense` model) + total actual maintenance costs, by vendor, priority, and monthly trend."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Template Configuration",
+      "item": [
+        {
+          "name": "List all templates for current landlord",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/templates/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "templates"
+              ]
+            },
+            "description": "Returns all TemplateConfig records owned by the authenticated landlord."
+          },
+          "response": []
+        },
+        {
+          "name": "Create a new template (e.g., receipt layout 3)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"template_type\": \"receipt\",\n    \"selected_layout\": 3,\n    \"is_default\": true,\n    \"agency_name\": \"Green Properties SARL\",\n    \"primary_color\": \"#2E7D32\",\n    \"footer_text\": \"Thank you for your payment\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/templates/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "templates"
+              ]
+            },
+            "description": "Creates a new template. If `is_default=true`, any previous default for that type is unset."
+          },
+          "response": []
+        },
+        {
+          "name": "Update a template (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"selected_layout\": 4,\n    \"secondary_color\": \"#FF9800\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/templates/{{template_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "templates",
+                "{{template_id}}"
+              ]
+            },
+            "description": "Partial update of a template."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Expense Management",
+      "item": [
+        {
+          "name": "List expenses (landlord sees own property expenses)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/expenses/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "expenses"
+              ]
+            },
+            "description": "Returns paginated list of expenses. Filtered by landlord’s properties."
+          },
+          "response": []
+        },
+        {
+          "name": "Create an expense with receipt (multipart/form-data)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "property_id",
+                  "value": "123",
+                  "type": "text",
+                  "description": "Integer `pkid` of the property"
+                },
+                {
+                  "key": "unit_id",
+                  "value": "456",
+                  "type": "text",
+                  "description": "Optional integer `pkid` of the unit"
+                },
+                {
+                  "key": "category",
+                  "value": "maintenance",
+                  "type": "text"
+                },
+                {
+                  "key": "amount",
+                  "value": "75000",
+                  "type": "text"
+                },
+                {
+                  "key": "expense_date",
+                  "value": "2026-05-07",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Replaced AC compressor",
+                  "type": "text"
+                },
+                {
+                  "key": "vendor_id",
+                  "value": "789",
+                  "type": "text",
+                  "description": "Integer `pkid` of vendor"
+                },
+                {
+                  "key": "receipt",
+                  "value": "",
+                  "type": "file",
+                  "src": "/path/to/receipt.pdf"
+                },
+                {
+                  "key": "is_reimbursable",
+                  "value": "false",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/expenses/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "expenses"
+              ]
+            },
+            "description": "Creates an expense. Use `multipart/form-data` to include a receipt file."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
