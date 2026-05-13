@@ -2,6 +2,7 @@ import uuid
 
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from decimal import Decimal
 
 
 class TimeStampedUUIDModel(models.Model):
@@ -97,12 +98,13 @@ class PlatformSettings(models.Model):
 
     @classmethod
     def get_settings(cls):
+
         obj, _ = cls.objects.get_or_create(
             defaults={
-                "platform_fee_percent": 1.0,
+                "platform_fee_percent": Decimal(1),
                 "platform_fee_cap": 1000,
-                "gateway_fee_percent": 2.0,
-                "fixed_extra_fee": 0,
+                "gateway_fee_percent": Decimal(2.0),
+                "fixed_extra_fee": Decimal(0),
                 "gateway_methods": ["mtn_momo", "orange_money"],
             }
         )

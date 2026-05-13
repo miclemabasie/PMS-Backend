@@ -70,8 +70,9 @@ class PaymentManager:
 
         if not self.agreement.is_active:
             raise ValueError("Agreement is not active.")
-
         if self.plan.mode == "monthly":
+            print("@@@@@@ monthly")
+
             # Validate monthly payment
             monthly_rent = self.unit.monthly_rent
             if not monthly_rent:
@@ -103,7 +104,8 @@ class PaymentManager:
                 )
             self._pending_months = months
 
-        else:  # yearly mode
+        else:
+            # yearly mode
             status = self.agreement.installment_status
             installments = status.get("installments", [])
             if installment_index is None:
@@ -139,13 +141,17 @@ class PaymentManager:
         expected_total = fee_breakdown["tenant_total"]
 
         if amount != expected_total:
-            raise ValueError(
-                f"Amount mismatch after fee calculation. Expected {expected_total}, got {amount}."
-            )
+            # check if amount is netrent
+            if amount == net_rent:
+                pass
+            else:
+                raise ValueError(
+                    f"Amount mismatch after fee calculation. Expected {expected_total}, got {amount}."
+                )
 
         # Execute gateway
         gateway_result = self._execute_gateway(
-            amount, payment_method, phone_number, provider
+            expected_total, payment_method, phone_number, provider
         )
         if not gateway_result.get("success"):
             raise ValueError(
@@ -244,7 +250,7 @@ class PaymentManager:
 
         # Update agreement coverage or installments
         period_start, period_end, months_covered = self._update_agreement(
-            payment.amount, net_rent
+            payment.amount, net_rent, payment
         )
 
         # Update payment record with completed info
@@ -352,6 +358,8 @@ class PaymentManager:
             gateway = gateway_factory.create_gateway("smobilpay", gateway_config)
 
             status_response = gateway.verify_payment(gateway_reference=ptn)
+            print("@@@@@ This is the verification data", status_response)
+
             status_response = make_json_serializable(status_response)
 
             if status_response.get("status") in ["success", "completed"]:
@@ -370,23 +378,27 @@ class PaymentManager:
             return {"success": False, "error": str(e)}
 
     def _update_agreement(
-        self, amount: Decimal, net_rent: Decimal
+        self, amount: Decimal, net_rent: Decimal, payment: Payment = None
     ) -> Tuple[datetime.date, datetime.date, Optional[Decimal]]:
         if self.plan.mode == "monthly":
-            return self._update_monthly_coverage(amount, net_rent)
+            months_override = payment.months_covered if payment else None
+            return self._update_monthly_coverage(amount, net_rent, months_override)
         else:
             return self._update_yearly_installments(amount, net_rent)
 
     def _update_monthly_coverage(
-        self, amount: Decimal, net_rent: Decimal
+        self, amount: Decimal, net_rent: Decimal, months_override: Decimal = None
     ) -> Tuple[datetime.date, datetime.date, Decimal]:
-        monthly_rent = self.unit.monthly_rent
-        months_raw = amount / monthly_rent
-        if months_raw % 1 != 0:
-            raise ValueError(
-                f"Amount must be exact multiple of monthly rent ({monthly_rent} XAF)."
-            )
-        months = int(months_raw)
+        if months_override is not None:
+            months = int(months_override)
+        else:
+            monthly_rent = self.unit.monthly_rent
+            months_raw = amount / monthly_rent
+            if months_raw % 1 != 0:
+                raise ValueError(
+                    f"Amount must be exact multiple of monthly rent ({monthly_rent} XAF)."
+                )
+            months = int(months_raw)
 
         allowed_terms = (
             self.plan.allowed_monthly_terms

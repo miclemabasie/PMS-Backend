@@ -189,9 +189,11 @@ class MakePaymentView(APIView):
         self.service = RentalAgreementService()
 
     def post(self, request, agreement_id):
+        print("##3 this is the data", request.data)
         serializer = MakePaymentSerializer(data=request.data)
         agreement = self.service.get_agreement_for_user(agreement_id, request.user)
         if serializer.is_valid():
+            print("@@@@@@@@@@@@@@ the serializer was validated")
             try:
                 payment = self.service.make_payment(
                     agreement=agreement,
@@ -208,7 +210,10 @@ class MakePaymentView(APIView):
                     PaymentSerializer(payment).data, status=status.HTTP_201_CREATED
                 )
             except Exception as e:
+                print(e)
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        print("This is the error ", e)
+        print("This is the error ", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

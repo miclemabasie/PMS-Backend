@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
+
 @dataclass
 class PaymentStatusModel:
     ptn: str
@@ -21,3 +22,4 @@ class PaymentStatusModel:
     payItemDescr: str
     errorCode: int
     tag: str
+    commission: dict
