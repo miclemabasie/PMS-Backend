@@ -11,8 +11,9 @@ from apps.maintenance.models import MaintenanceRequest
 from apps.core.base_service import BaseService
 from apps.payments.repositories import PaymentRepository, RentalAgreementRepository
 from apps.reports.repositories import ExpenseRepository
-from django.db.models import F, Value, CharField
-from django.db.models.functions import Cast
+from django.db.models import F, Value, CharField, DecimalField
+from django.db.models.functions import Cast, Coalesce
+from django.db.models.fields.json import KeyTextTransform
 
 
 class FinancialReportService:
@@ -67,16 +68,27 @@ class FinancialReportService:
             trunc_func = TruncDate
 
         # Aggregate income by period
+
         income_by_period = (
             income_qs.annotate(
                 period=trunc_func(date_field_income),
-                platform_fee_val=Cast(
-                    "fee_breakdown__platform_fee",
-                    output_field=DecimalField(max_digits=10, decimal_places=0),
+                platform_fee_val=Coalesce(
+                    Cast(
+                        KeyTextTransform("platform_fee", "fee_breakdown"),
+                        output_field=DecimalField(max_digits=10, decimal_places=0),
+                    ),
+                    Value(
+                        0, output_field=DecimalField(max_digits=10, decimal_places=0)
+                    ),
                 ),
-                gateway_fee_val=Cast(
-                    "fee_breakdown__gateway_fee",
-                    output_field=DecimalField(max_digits=10, decimal_places=0),
+                gateway_fee_val=Coalesce(
+                    Cast(
+                        KeyTextTransform("gateway_fee", "fee_breakdown"),
+                        output_field=DecimalField(max_digits=10, decimal_places=0),
+                    ),
+                    Value(
+                        0, output_field=DecimalField(max_digits=10, decimal_places=0)
+                    ),
                 ),
             )
             .values("period")

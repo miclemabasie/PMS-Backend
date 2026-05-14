@@ -5,7 +5,7 @@ from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from apps.properties.models import Property, Owner
 from apps.properties.services import OwnerService
@@ -60,8 +60,19 @@ class PropertyFinancialSummaryView(APIView):
         end = request.query_params.get("end")
         group_by = request.query_params.get("group_by", "month")  # month or day
 
-        start_date = datetime.fromisoformat(start) if start else None
-        end_date = datetime.fromisoformat(end) if end else None
+        if start:
+            start_date = timezone.make_aware(datetime.strptime(start, "%Y-%m-%d"))
+        else:
+            start_date = None
+
+        if end:
+            end_date = timezone.make_aware(
+                datetime.strptime(end, "%Y-%m-%d")
+                + timedelta(days=1)
+                - timedelta(seconds=1)
+            )
+        else:
+            end_date = None
 
         data = self.service.get_property_summary(
             property_id, start_date, end_date, group_by
@@ -85,8 +96,19 @@ class OwnerOverviewView(APIView):
         start = request.query_params.get("start")
         end = request.query_params.get("end")
 
-        start_date = datetime.fromisoformat(start) if start else None
-        end_date = datetime.fromisoformat(end) if end else None
+        if start:
+            start_date = timezone.make_aware(datetime.strptime(start, "%Y-%m-%d"))
+        else:
+            start_date = None
+
+        if end:
+            end_date = timezone.make_aware(
+                datetime.strptime(end, "%Y-%m-%d")
+                + timedelta(days=1)
+                - timedelta(seconds=1)
+            )
+        else:
+            end_date = None
 
         data = self.service.get_owner_overview(str(owner.pkid), start_date, end_date)
         return Response(data)

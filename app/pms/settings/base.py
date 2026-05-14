@@ -397,7 +397,7 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@example.com")
 # -----------------------------
 # Logger configuration
 # -----------------------------
-LOG_FILE_NAME = "django.log"
+LOG_FILE_NAME = "pms.log"
 LOG_LEVEL = env("LOG_LEVEL", default="INFO")
 
 logging.config.dictConfig(

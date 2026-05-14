@@ -193,7 +193,6 @@ class MakePaymentView(APIView):
         serializer = MakePaymentSerializer(data=request.data)
         agreement = self.service.get_agreement_for_user(agreement_id, request.user)
         if serializer.is_valid():
-            print("@@@@@@@@@@@@@@ the serializer was validated")
             try:
                 payment = self.service.make_payment(
                     agreement=agreement,
