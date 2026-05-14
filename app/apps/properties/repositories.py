@@ -100,82 +100,67 @@ class UnitRepository(DjangoRepository[Unit]):
         super().__init__(Unit)
 
     def find_by_property(self, property_id):
+        """Return units belonging to a specific property."""
         return self.model_class.objects.filter(property_id=property_id)
 
-    def get_queryset_for_user(self, user):
+    def get_queryset_for_user(self, user, status=None):
         """
-        Return a QuerySet of Manager objects accessible by the given user.
+        Return units accessible to the user.
 
         Rules:
-        - Superuser: all managers.
-        - Owner (landlord): managers who manage at least one property owned by this user.
-        - Manager: only their own profile.
-        - Tenant or any other: empty queryset.
-        """
-        qs = self.model_class.objects.all().select_related("user")
+        - Superuser → all units
+        - Landlord (owner) → units from properties they own
+        - Manager → units from properties they manage
+        - Tenant → units where they have an active rental agreement
+        - Others → empty queryset
 
-        if user.is_superuser:
-            return qs
-
-        # Owner (landlord) → managers through owned properties
-        if hasattr(user, "owner_profile"):
-            return qs.filter(
-                managed_properties__ownership_records__owner=user.owner_profile
-            ).distinct()
-
-        # Manager → only themselves
-        if hasattr(user, "manager_profile"):
-            return qs.filter(pkid=user.manager_profile.pkid)
-
-        # All other roles (tenant, etc.) get no access
-        return qs.none()
-
-
-class PropertyOwnershipRepository(DjangoRepository[PropertyOwnership]):
-    def __init__(self):
-        super().__init__(PropertyOwnership)
-
-
-class UnitRepository(DjangoRepository[Unit]):
-    def __init__(self):
-        super().__init__(Unit)
-
-    def find_by_property(self, property_id):
-        return self.model_class.objects.filter(property_id=property_id)
-
-    def find_by_user(self, user, status=None):
-        """
-        Return units that the user has access to based on property ownership/management.
-
-        Rules:
-        - Superuser: all units
-        - Owner: units from properties they own
-        - Manager: units from properties they manage
-        - Others: empty queryset
+        Uses the actual primary key (pkid, bigint) for tenant lookup.
         """
         qs = self.model_class.objects.all().select_related("property")
 
         if user.is_superuser:
             return qs
 
-        # Owner → units from owned properties
+        # Landlord
         if hasattr(user, "owner_profile"):
+            filtered = qs.filter(property__ownership_records__owner=user.owner_profile)
             if status:
-                return qs.filter(
-                    property__ownership_records__owner=user.owner_profile,
-                    status=status,
-                ).distinct()
-            return qs.filter(
-                property__ownership_records__owner=user.owner_profile
-            ).distinct()
+                filtered = filtered.filter(status=status)
+            return filtered.distinct()
 
-        # Manager → units from managed properties
+        # Manager
         if hasattr(user, "manager_profile"):
+            filtered = qs.filter(property__managers=user.manager_profile)
             if status:
-                return qs.filter(
-                    property__managers=user.manager_profile, status=status
-                ).distinct()
-            return qs.filter(property__managers=user.manager_profile).distinct()
+                filtered = filtered.filter(status=status)
+            return filtered.distinct()
 
-        # All other roles get no access
+        # Tenant
+        if hasattr(user, "tenant_profile"):
+            from apps.payments.models import RentalAgreement
+
+            # Get unit primary keys (bigint) from active rental agreements
+            agreement_unit_pkids = RentalAgreement.objects.filter(
+                tenant=user.tenant_profile, is_active=True
+            ).values_list(
+                "unit_id", flat=True
+            )  # unit_id is bigint FK to Unit.pkid
+
+            filtered = qs.filter(pkid__in=agreement_unit_pkids)  # pkid is bigint
+            if status:
+                filtered = filtered.filter(status=status)
+            return filtered.distinct()
+
+        # No access
         return qs.none()
+
+    def find_by_user(self, user, status=None):
+        """
+        Alias for get_queryset_for_user to maintain backward compatibility.
+        """
+        return self.get_queryset_for_user(user, status)
+
+
+class PropertyOwnershipRepository(DjangoRepository[PropertyOwnership]):
+    def __init__(self):
+        super().__init__(PropertyOwnership)

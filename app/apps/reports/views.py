@@ -16,6 +16,8 @@ from .services.financial_service import FinancialReportService
 from .models import TemplateConfig, Expense
 from .serializers import TemplateConfigSerializer, ExpenseSerializer
 from .repositories import TemplateConfigRepository
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
 
 
 # ------------------------------------------------------------
@@ -170,21 +172,50 @@ class MaintenanceSummaryView(APIView):
 class ExpenseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
     serializer_class = ExpenseSerializer
+    filter_backends = [
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]  # removed DjangoFilterBackend
+    search_fields = ["description"]
+    ordering_fields = ["expense_date", "amount"]
+    ordering = ["-expense_date"]
 
     def get_queryset(self):
         user = self.request.user
+        qs = Expense.objects.select_related("property", "unit", "vendor")
+
+        # Filter by user role
         if user.is_superuser:
-            return Expense.objects.all()
-        # For landlords/managers: filter by properties they own/manage
-        if hasattr(user, "owner_profile"):
-            return Expense.objects.filter(
-                property__owners=user.owner_profile
-            ).distinct()
-        if hasattr(user, "manager_profile"):
-            return Expense.objects.filter(
-                property__managers=user.manager_profile
-            ).distinct()
-        return Expense.objects.none()
+            pass  # keep all
+        elif hasattr(user, "owner_profile"):
+            qs = qs.filter(property__owners=user.owner_profile)
+        elif hasattr(user, "manager_profile"):
+            qs = qs.filter(property__managers=user.manager_profile)
+        else:
+            return Expense.objects.none()
+
+        # Manual filtering from query params
+        property_id = self.request.query_params.get("property")
+        if property_id:
+            qs = qs.filter(property_id=property_id)
+
+        unit_id = self.request.query_params.get("unit")
+        if unit_id:
+            qs = qs.filter(unit_id=unit_id)
+
+        category = self.request.query_params.get("category")
+        if category:
+            qs = qs.filter(category=category)
+
+        start_date = self.request.query_params.get("start_date")
+        if start_date:
+            qs = qs.filter(expense_date__gte=start_date)
+
+        end_date = self.request.query_params.get("end_date")
+        if end_date:
+            qs = qs.filter(expense_date__lte=end_date)
+
+        return qs.distinct()
 
 
 class MaintenanceAnalyticsView(APIView):

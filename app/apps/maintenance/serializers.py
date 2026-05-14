@@ -116,4 +116,4 @@ class MaintenanceRequestSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at", "unit"]

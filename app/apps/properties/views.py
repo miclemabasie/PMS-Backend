@@ -204,7 +204,7 @@ class PropertyDetailView(APIView):
 
 
 class UnitListCreateView(APIView):
-    permission_classes = [IsAuthenticated, CanManageProperty]
+    permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
     def __init__(self, **kwargs):
