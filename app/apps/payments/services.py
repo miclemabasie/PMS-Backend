@@ -49,14 +49,14 @@ class PaymentPlanService(BaseService[PaymentPlan]):
         return self.repository.get_with_installments(plan_id)
 
     def create_payment_plan(self, user, data):
-        print("This is the user:", user.__dict__, user.email)
-        if user.role == "landlord":
+        if user.role in ("landlord", "manager"):
             return self.create(**data)
-        elif user.role == "manager":
-            return self.create(**data)
-        else:
-            print("did not create anything")
-            return None
+        logger.info(
+            "create_payment_plan denied for user %s (role=%s)",
+            getattr(user, "id", None),
+            getattr(user, "role", None),
+        )
+        return None
 
     def get_installments(self, plan_id: str) -> List[Installment]:
         # No need to fetch plan first; repository filter will return empty if plan missing.
@@ -267,7 +267,6 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         return agreement
 
     def get_all_agreements_for_tenant(self, tenant_id: str) -> List[RentalAgreement]:
-        print("this is the user id", tenant_id, "in the service")
         return self.repository.find_all_by_tenant(tenant_id)
 
     @transaction.atomic
@@ -300,11 +299,19 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         plan = agreement.payment_plan
         is_outstanding = False
 
-        # Determine if there is any outstanding financial obligation
+        # Determine if there is any outstanding financial obligation.
+        # "Outstanding" means the tenant currently owes money (back rent or
+        # unpaid installments). Previously this flag was inverted for monthly
+        # plans: it was set when `coverage_end_date >= today` (i.e. the tenant
+        # had *prepaid* future coverage — the *good* state), which made it
+        # impossible to terminate a current tenant by mutual agreement, and
+        # conversely allowed landlords to unilaterally evict tenants in arrears.
+        today = timezone.now().date()
         if plan.mode == "monthly":
+            # No coverage at all OR coverage already lapsed → tenant owes rent.
             if (
-                agreement.coverage_end_date
-                and agreement.coverage_end_date >= timezone.now().date()
+                agreement.coverage_end_date is None
+                or agreement.coverage_end_date < today
             ):
                 is_outstanding = True
         else:  # yearly

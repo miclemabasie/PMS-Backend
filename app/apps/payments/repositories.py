@@ -82,7 +82,6 @@ class RentalAgreementRepository(DjangoRepository[RentalAgreement]):
         return agreement
 
     def find_all_by_tenant(self, tenant_id: str) -> List[RentalAgreement]:
-        print("this is the tenant id", tenant_id, "in the repository")
         return list(self.model_class.objects.filter(tenant__user__pkid=tenant_id))
 
     def find_all_by_user(self, user):

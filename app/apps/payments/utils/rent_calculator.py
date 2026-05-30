@@ -60,18 +60,38 @@ class RentCalculator:
         # 3. Fixed extra fee (always tenant)
         fixed_extra = Decimal(settings.fixed_extra_fee)
 
-        # 4. Distribute fees based on who pays
+        # 4. Distribute fees based on who pays.
+        # NOTE: each *_fee_payer is one of {"tenant", "landlord", "split"}.
+        # Previously this used `if tenant: ... else: landlord -= fee`, which silently
+        # treated `"split"` the same as `"landlord"`. We now handle each case
+        # explicitly so a 50/50 split is actually applied.
         tenant_total = self.net_rent
         landlord_net = self.net_rent
 
-        if self.config.platform_fee_payer == "tenant":
+        platform_payer = self.config.platform_fee_payer
+        if platform_payer == "tenant":
             tenant_total += platform_fee
-        else:
+        elif platform_payer == "split":
+            half = (platform_fee / Decimal(2)).quantize(
+                Decimal("1."), rounding=ROUND_HALF_UP
+            )
+            other_half = platform_fee - half  # avoid rounding loss
+            tenant_total += half
+            landlord_net -= other_half
+        else:  # "landlord" (default)
             landlord_net -= platform_fee
 
-        if self.config.gateway_fee_payer == "tenant":
+        gateway_payer = self.config.gateway_fee_payer
+        if gateway_payer == "tenant":
             tenant_total += gateway_fee
-        else:
+        elif gateway_payer == "split":
+            half = (gateway_fee / Decimal(2)).quantize(
+                Decimal("1."), rounding=ROUND_HALF_UP
+            )
+            other_half = gateway_fee - half
+            tenant_total += half
+            landlord_net -= other_half
+        else:  # "landlord" (default)
             landlord_net -= gateway_fee
 
         tenant_total += fixed_extra

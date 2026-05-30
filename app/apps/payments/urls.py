@@ -11,7 +11,6 @@ from .views import (
     PaymentListView,
     TerminateAgreementView,
     RentalAgreementListView,
-    RentalAgreementDetailView,
     VerifyPaymentView,
     PublicSubscriptionPlanListView,
     AdminSubscriptionPlanListCreateView,

@@ -71,8 +71,6 @@ class PaymentManager:
         if not self.agreement.is_active:
             raise ValueError("Agreement is not active.")
         if self.plan.mode == "monthly":
-            print("@@@@@@ monthly")
-
             # Validate monthly payment
             monthly_rent = self.unit.monthly_rent
             if not monthly_rent:
@@ -213,7 +211,22 @@ class PaymentManager:
         Step 2: Poll gateway using payment.gateway_reference (ptn).
         If success, update agreement coverage/installments and mark payment completed.
         Returns status dict.
+
+        Concurrency: re-fetches the Payment row with `select_for_update()` so that
+        concurrent calls (e.g. tenant poll + landlord poll, or future webhook +
+        poll) cannot both pass the `pending` guard and double-extend coverage /
+        double-count installments for a single gateway transaction.
         """
+        # Lock the payment row for the duration of this transaction.
+        try:
+            payment = (
+                Payment.objects.select_for_update()
+                .select_related("agreement")
+                .get(pk=payment.pk)
+            )
+        except Payment.DoesNotExist:
+            raise ValueError("Payment not found.")
+
         if payment.status != "pending":
             return {"status": payment.status, "message": "Already processed"}
 
@@ -358,7 +371,7 @@ class PaymentManager:
             gateway = gateway_factory.create_gateway("smobilpay", gateway_config)
 
             status_response = gateway.verify_payment(gateway_reference=ptn)
-            print("@@@@@ This is the verification data", status_response)
+            logger.debug("Gateway verify_payment response for ptn=%s: %s", ptn, status_response)
 
             status_response = make_json_serializable(status_response)
 

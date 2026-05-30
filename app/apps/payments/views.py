@@ -1,5 +1,7 @@
 # apps/agreements/views.py
 
+import logging
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, viewsets, permissions
@@ -22,11 +24,10 @@ from .permissions import (
     CanManageRentalAgreement,
 )
 from django.core.exceptions import PermissionDenied
-from .serializers import RentalAgreementDetailSerializer
-from .permissions import user_can_manage_agreement
-from .models import SubscriptionPlan
 from .serializers import SubscriptionPlanSerializer
 from .services import SubscriptionPlanService
+
+logger = logging.getLogger(__name__)
 
 
 # ----------------------------------------------------
@@ -189,7 +190,6 @@ class MakePaymentView(APIView):
         self.service = RentalAgreementService()
 
     def post(self, request, agreement_id):
-        print("##3 this is the data", request.data)
         serializer = MakePaymentSerializer(data=request.data)
         agreement = self.service.get_agreement_for_user(agreement_id, request.user)
         if serializer.is_valid():
@@ -209,10 +209,13 @@ class MakePaymentView(APIView):
                     PaymentSerializer(payment).data, status=status.HTTP_201_CREATED
                 )
             except Exception as e:
-                print(e)
+                logger.exception("make_payment failed for agreement %s", agreement_id)
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        print("This is the error ", e)
-        print("This is the error ", serializer.errors)
+        logger.warning(
+            "MakePaymentView validation failed for agreement %s: %s",
+            agreement_id,
+            serializer.errors,
+        )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -235,7 +238,6 @@ class PaymentListView(APIView):
             agreement = self.agreement_service.get_agreement_for_user(
                 agreement_id, request.user
             )
-            print("this is the argreement", agreement, agreement.id)
         except ValueError:
             return Response({"error": "Agreement not found"}, status=404)
         except PermissionDenied as e:
@@ -268,21 +270,6 @@ class TerminateAgreementView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except PermissionDenied as e:
             return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
-
-
-class RentalAgreementDetailView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, agreement_id):
-        service = RentalAgreementService()
-        agreement = service.get_by_id(agreement_id)
-        if not agreement:
-            return Response({"error": "Not found"}, status=404)
-        # Check permission: landlord/manager can view if they own/manage the property
-        if not user_can_manage_agreement(request.user, agreement):
-            return Response({"error": "Permission denied"}, status=403)
-        serializer = RentalAgreementDetailSerializer(agreement)
-        return Response(serializer.data)
 
 
 class VerifyPaymentView(APIView):
