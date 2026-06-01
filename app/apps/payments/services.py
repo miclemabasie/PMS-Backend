@@ -12,6 +12,7 @@ from .repositories import (
     PaymentRepository,
     SubscriptionPlanRepository,
 )
+from .managers.payment_manager import make_json_serializable
 from .dummy_payment_processor import DummyPaymentProcessor
 from .models import PaymentPlan, Installment, RentalAgreement, Payment, SubscriptionPlan
 from typing import Optional, List, Dict, Any
@@ -388,6 +389,85 @@ class RentalAgreementService(BaseService[RentalAgreement]):
     def get_agreements_for_user(self, user) -> List[RentalAgreement]:
         """Retrieve all agreements the user has permission to view."""
         return self.repository.find_all_by_user(user)
+
+    @transaction.atomic
+    def record_manual_payment(
+        self,
+        agreement_id,
+        amount,
+        payment_method,
+        payment_date=None,
+        notes="",
+        recorded_by_user=None,
+    ):
+        """
+        Record a manual payment (cash, bank transfer, cheque) on behalf of a tenant.
+        No gateway call. Payment is immediately marked 'completed'.
+        """
+        agreement = self.get_agreement_for_user(agreement_id, recorded_by_user)
+        if not agreement.is_active:
+            raise ValueError("Cannot record payment for inactive agreement")
+
+        # Get payment config and calculate fees (if any)
+        config = agreement.unit.property.payment_config
+        owner = agreement.unit.property.get_payout_owner()
+        payout_method = owner.preferred_payout_method if owner else "bank_transfer"
+
+        # Determine net rent based on plan mode
+        if agreement.payment_plan.mode == "monthly":
+            net_rent = agreement.unit.monthly_rent
+        else:
+            status = agreement.installment_status
+            next_idx = status.get("next_installment_index")
+            if next_idx is None:
+                raise ValueError("Agreement is already fully paid")
+            net_rent = Decimal(status["installments"][next_idx]["remaining"])
+
+        calculator = RentCalculator(net_rent, config, payout_method)
+        fee_breakdown = calculator.get_breakdown()
+        expected_total = fee_breakdown["tenant_total"]
+
+        # Validate amount
+        if amount != expected_total:
+            if not agreement.payment_plan.allow_custom_amount:
+                raise ValueError(
+                    f"Amount must be exactly {expected_total} XAF for this plan."
+                )
+            # Recalculate landlord net proportionally
+            landlord_net = (
+                amount * fee_breakdown["landlord_net"] / expected_total
+            ).quantize(Decimal("1."))
+        else:
+            landlord_net = fee_breakdown["landlord_net"]
+
+        # Create payment record
+        payment_repo = PaymentRepository()
+        payment = payment_repo.create(
+            agreement=agreement,
+            amount=amount,
+            payment_method=payment_method,
+            status="completed",
+            payment_date=payment_date or timezone.now().date(),
+            period_start=timezone.now().date(),  # will be updated by agreement update
+            period_end=timezone.now().date(),
+            net_landlord_amount=landlord_net,
+            fee_breakdown=make_json_serializable(fee_breakdown),
+            notes=notes,
+            # add recorded_by if you add the field to Payment model
+        )
+
+        # Update agreement coverage or installments using the existing PaymentManager logic
+        # We reuse the private _update_agreement method from PaymentManager
+        manager = PaymentManager(agreement)
+        period_start, period_end, months_covered = manager._update_agreement(
+            amount, net_rent, payment
+        )
+        payment.period_start = period_start
+        payment.period_end = period_end
+        payment.months_covered = months_covered
+        payment.save(update_fields=["period_start", "period_end", "months_covered"])
+
+        return payment
 
 
 class SubscriptionPlanService(BaseService[SubscriptionPlan]):

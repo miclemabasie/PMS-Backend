@@ -15,6 +15,7 @@ urlpatterns = [
     path("api/v1/", include("apps.notifications.urls", namespace="notifications")),
     # app/pms/urls.py - add line under other includes
     path("api/v1/reports/", include("apps.reports.urls", namespace="reports")),
+    path("api/v1/dashboard/", include("apps.dashboard.urls", namespace="dashboard")),
     path(
         "api/v1/maintenance/", include("apps.maintenance.urls", namespace="maintenance")
     ),

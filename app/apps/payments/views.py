@@ -18,6 +18,7 @@ from .serializers import (
     RentalAgreementSerializer,
     PaymentSerializer,
     MakePaymentSerializer,
+    ManualPaymentSerializer,
 )
 from .permissions import (
     IsLandlordOrManagerOrSuperAdminForUnit,
@@ -358,3 +359,29 @@ class AdminSubscriptionPlanDetailView(APIView):
         if not deleted:
             return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RecordManualPaymentView(APIView):
+    permission_classes = [IsAuthenticated, CanManageRentalAgreement]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = RentalAgreementService()
+
+    def post(self, request, agreement_id):
+        serializer = ManualPaymentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        try:
+            payment = self.service.record_manual_payment(
+                agreement_id=agreement_id,
+                amount=serializer.validated_data["amount"],
+                payment_method=serializer.validated_data["payment_method"],
+                payment_date=serializer.validated_data.get("payment_date"),
+                notes=serializer.validated_data.get("notes", ""),
+                recorded_by_user=request.user,
+            )
+            return Response(PaymentSerializer(payment).data, status=201)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=400)

@@ -89,6 +89,11 @@ class PropertyRepository(DjangoRepository[Property]):
         print("running find by manager")
         return Property.objects.filter(managers__id=manager_id)
 
+    def count_by_owner(self, owner_id):
+        return self.model_class.objects.filter(
+            ownership_records__owner_id=owner_id
+        ).count()
+
 
 class PropertyOwnershipRepository(DjangoRepository[PropertyOwnership]):
     def __init__(self):

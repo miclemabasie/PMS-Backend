@@ -140,6 +140,43 @@ class PaymentRepository(DjangoRepository[Payment]):
         except self.model_class.DoesNotExist:
             return None
 
+    def sum_monthly_revenue_for_owner(self, owner_id):
+        from django.db.models import Sum
+        from django.utils import timezone
+
+        now = timezone.now()
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        return (
+            self.model_class.objects.filter(
+                agreement__unit__property__ownership_records__owner_id=owner_id,
+                status="completed",
+                payment_date__gte=start_of_month,
+                payment_date__lte=now,
+            ).aggregate(total=Sum("amount"))["total"]
+            or 0
+        )
+
+    def find_for_landlord(self, owner_id, filters=None):
+        """Return payments for all properties owned by the landlord."""
+        qs = (
+            self.model_class.objects.filter(
+                agreement__unit__property__ownership_records__owner_id=owner_id
+            )
+            .select_related("agreement__unit__property", "agreement__tenant__user")
+            .order_by("-payment_date")
+        )
+
+        if filters:
+            if filters.get("property_id"):
+                qs = qs.filter(agreement__unit__property_id=filters["property_id"])
+            if filters.get("tenant_id"):
+                qs = qs.filter(agreement__tenant_id=filters["tenant_id"])
+            if filters.get("start_date"):
+                qs = qs.filter(payment_date__gte=filters["start_date"])
+            if filters.get("end_date"):
+                qs = qs.filter(payment_date__lte=filters["end_date"])
+        return qs
+
 
 class SubscriptionPlanRepository(DjangoRepository[SubscriptionPlan]):
     def __init__(self):

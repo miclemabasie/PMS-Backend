@@ -103,3 +103,12 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
+
+
+class ManualPaymentSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=10, decimal_places=0)
+    payment_method = serializers.ChoiceField(
+        choices=["cash", "bank_transfer", "cheque", "other"]
+    )
+    payment_date = serializers.DateField(required=False)
+    notes = serializers.CharField(required=False, allow_blank=True)

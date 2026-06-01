@@ -91,3 +91,16 @@ class TenantRepository(DjangoRepository[Tenant]):
                 agreements__unit__property__managers=manager
             ).distinct()
         )
+
+    def count_active_tenants_for_owner(self, owner_id):
+        from apps.payments.models import RentalAgreement
+
+        # Distinct tenants with active agreement in owner's properties
+        return (
+            RentalAgreement.objects.filter(
+                unit__property__ownership_records__owner_id=owner_id, is_active=True
+            )
+            .values("tenant")
+            .distinct()
+            .count()
+        )

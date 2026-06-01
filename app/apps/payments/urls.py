@@ -15,6 +15,7 @@ from .views import (
     PublicSubscriptionPlanListView,
     AdminSubscriptionPlanListCreateView,
     AdminSubscriptionPlanDetailView,
+    RecordManualPaymentView,
 )
 
 app_name = "agreements"
@@ -78,5 +79,10 @@ urlpatterns = [
         "admin/subscription-plans/<uuid:pk>/",
         AdminSubscriptionPlanDetailView.as_view(),
         name="admin-subscription-plan-detail",
+    ),
+    path(
+        "agreements/<uuid:agreement_id>/manual-payment/",
+        RecordManualPaymentView.as_view(),
+        name="manual-payment",
     ),
 ]

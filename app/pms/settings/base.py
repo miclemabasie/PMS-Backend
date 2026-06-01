@@ -61,6 +61,7 @@ LOCAL_APPS = [
     "apps.maintenance.apps.MaintenanceConfig",
     "apps.documents.apps.DocumentsConfig",
     "apps.reports.apps.ReportsConfig",
+    "apps.dashboard.apps.DashboardConfig",
 ]
 
 THIRD_PARTY_APPS = [
