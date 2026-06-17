@@ -12,7 +12,12 @@ import os
 # Debugging
 # -----------------------------
 DEBUG = True
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "leading-kite-wise.ngrok-free.app",
+    "https://leading-kite-wise.ngrok-free.app",
+]
 
 # -----------------------------
 # Secret key (development)
@@ -68,13 +73,6 @@ for logger_name in ["", "apps", "channels", "channels.layers"]:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.DEBUG)
 
-# -----------------------------
-# Django Debug Toolbar (optional)
-# -----------------------------
-# Uncomment if installed
-# INSTALLED_APPS += ["debug_toolbar"]
-# MIDDLEWARE = ["debug_toolbar.middleware.DebugToolbarMiddleware"] + MIDDLEWARE
-# INTERNAL_IPS = ["127.0.0.1"]
 
 # -----------------------------
 # Dev tools (Django Extensions)
@@ -85,7 +83,8 @@ GRAPH_MODELS = {"all_applications": True, "group_models": True}
 # -----------------------------
 # Trusted origins for dev
 # -----------------------------
-CSRF_TRUSTED_ORIGINS += [
+CSRF_TRUSTED_ORIGINS = [
     "http://localhost",
     "http://127.0.0.1",
+    "https://leading-kite-wise.ngrok-free.app",
 ]

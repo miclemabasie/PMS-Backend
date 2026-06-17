@@ -82,12 +82,14 @@ THIRD_PARTY_APPS = [
     "drf_spectacular_sidecar",
 ]
 
+
 INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS + THIRD_PARTY_APPS
 
 # -----------------------------
 # Middleware
 # -----------------------------
 MIDDLEWARE = [
+    "apps.core.middleware.ForceCorsMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -238,6 +240,7 @@ SMOBILPAY_PAYITEM_IDS = {
 # Email & CORS
 # -----------------------------
 DEFAULT_FROM_EMAIL = "example@gmail.com"
+# Force CORS for all origins (temporary debug)
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
@@ -262,7 +265,6 @@ CACHES = {
     }
 }
 
-CSRF_TRUSTED_ORIGINS = ["http://localhost", "http://127.0.0.1"]
 
 SITE_ID = 1
 
