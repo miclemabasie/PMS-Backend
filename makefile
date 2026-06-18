@@ -123,6 +123,10 @@ populate_test_data_resume:
 # Reset state without deleting data (if you want to restart sections manually)
 populate_test_data_reset:
 	docker compose exec api python manage.py populate_test_data --reset --count 100
+
+setup_subscription_data:
+	docker compose exec api python manage.py setup_subscription_data
+
 # ----------------------------------------------------------------------------
 # Elasticsearch Commands
 # ----------------------------------------------------------------------------
