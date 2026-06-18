@@ -62,6 +62,7 @@ LOCAL_APPS = [
     "apps.documents.apps.DocumentsConfig",
     "apps.reports.apps.ReportsConfig",
     "apps.dashboard.apps.DashboardConfig",
+    "apps.subscriptions.apps.SubscriptionsConfig",
 ]
 
 THIRD_PARTY_APPS = [

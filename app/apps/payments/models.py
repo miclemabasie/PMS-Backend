@@ -153,6 +153,15 @@ class RentalAgreement(TimeStampedUUIDModel):
             models.Index(fields=["unit", "is_active"]),
             models.Index(fields=["tenant", "is_active"]),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["unit", "tenant"], name="unique_unit_tenant"
+            ),
+            models.CheckConstraint(
+                name="check_coverage_end_date",
+                check=models.Q(coverage_end_date__gte=models.F("start_date")),
+            ),
+        ]
 
     def __str__(self):
         return f"{self.tenant} @ {self.unit} ({self.payment_plan.name})"

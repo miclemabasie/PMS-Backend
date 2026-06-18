@@ -12,6 +12,7 @@ from apps.payments.models import Payment, RentalAgreement
 from apps.payments.dummy_payment_processor import DummyPaymentProcessor
 from apps.payments.utils.rent_calculator import RentCalculator
 from apps.properties.models import PaymentConfiguration
+from dateutil.relativedelta import relativedelta
 
 logger = logging.getLogger(__name__)
 
@@ -371,7 +372,9 @@ class PaymentManager:
             gateway = gateway_factory.create_gateway("smobilpay", gateway_config)
 
             status_response = gateway.verify_payment(gateway_reference=ptn)
-            logger.debug("Gateway verify_payment response for ptn=%s: %s", ptn, status_response)
+            logger.debug(
+                "Gateway verify_payment response for ptn=%s: %s", ptn, status_response
+            )
 
             status_response = make_json_serializable(status_response)
 
@@ -399,9 +402,51 @@ class PaymentManager:
         else:
             return self._update_yearly_installments(amount, net_rent)
 
+    # def _update_monthly_coverage(
+    #     self, amount: Decimal, net_rent: Decimal, months_override: Decimal = None
+    # ) -> Tuple[datetime.date, datetime.date, Decimal]:
+    #     if months_override is not None:
+    #         months = int(months_override)
+    #     else:
+    #         monthly_rent = self.unit.monthly_rent
+    #         months_raw = amount / monthly_rent
+    #         if months_raw % 1 != 0:
+    #             raise ValueError(
+    #                 f"Amount must be exact multiple of monthly rent ({monthly_rent} XAF)."
+    #             )
+    #         months = int(months_raw)
+
+    #     allowed_terms = (
+    #         self.plan.allowed_monthly_terms
+    #         if self.plan.allowed_monthly_terms
+    #         else list(range(1, self.plan.max_months + 1))
+    #     )
+    #     if months not in allowed_terms:
+    #         raise ValueError(
+    #             f"Payment of {months} month(s) not allowed. Allowed: {allowed_terms}"
+    #         )
+
+    #     days_covered = months * 30
+    #     current_coverage = self.agreement.coverage_end_date
+    #     if current_coverage and current_coverage >= timezone.now().date():
+    #         period_start = current_coverage
+    #         new_end = current_coverage + timedelta(days=days_covered)
+    #     else:
+    #         period_start = timezone.now().date()
+    #         new_end = period_start + timedelta(days=days_covered)
+
+    #     repo = self._get_repository()
+    #     repo.update_coverage_end_date(self.agreement.id, new_end)
+    #     return period_start, new_end, Decimal(months)
+
     def _update_monthly_coverage(
         self, amount: Decimal, net_rent: Decimal, months_override: Decimal = None
     ) -> Tuple[datetime.date, datetime.date, Decimal]:
+        """
+        Extend coverage by a given number of calendar months.
+        Uses relativedelta to handle month‑end and leap years correctly.
+        """
+        # Determine number of months (must be integer)
         if months_override is not None:
             months = int(months_override)
         else:
@@ -413,6 +458,7 @@ class PaymentManager:
                 )
             months = int(months_raw)
 
+        # Validate against allowed terms
         allowed_terms = (
             self.plan.allowed_monthly_terms
             if self.plan.allowed_monthly_terms
@@ -423,17 +469,23 @@ class PaymentManager:
                 f"Payment of {months} month(s) not allowed. Allowed: {allowed_terms}"
             )
 
-        days_covered = months * 30
+        # Determine start date for the new coverage period
+        today = timezone.now().date()
         current_coverage = self.agreement.coverage_end_date
-        if current_coverage and current_coverage >= timezone.now().date():
-            period_start = current_coverage
-            new_end = current_coverage + timedelta(days=days_covered)
-        else:
-            period_start = timezone.now().date()
-            new_end = period_start + timedelta(days=days_covered)
 
+        if current_coverage and current_coverage >= today:
+            # Coverage is still active → extend from current end date
+            period_start = current_coverage
+            new_end = current_coverage + relativedelta(months=months)
+        else:
+            # Coverage expired or never set → start from today
+            period_start = today
+            new_end = today + relativedelta(months=months)
+
+        # Update agreement
         repo = self._get_repository()
         repo.update_coverage_end_date(self.agreement.id, new_end)
+
         return period_start, new_end, Decimal(months)
 
     def _update_yearly_installments(
