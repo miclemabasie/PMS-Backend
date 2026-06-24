@@ -79,6 +79,17 @@ class SubscriptionPlan(TimeStampedUUIDModel):
         related_name="plans",
         verbose_name=_("Feature Group"),
     )
+    transaction_fee_discount_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text="Percentage discount applied to platform fee (e.g., 25.00 for 25% off).",
+    )
+    platform_fee_cap_override = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="If set, replaces the global platform fee cap for this plan.",
+    )
 
     is_active = models.BooleanField(_("Active"), default=True)
 

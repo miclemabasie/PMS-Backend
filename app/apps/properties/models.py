@@ -60,7 +60,10 @@ class Owner(TimeStampedUUIDModel):
         verbose_name=_("User"),
     )
     subscription_plan = models.ForeignKey(
-        "payments.SubscriptionPlan", on_delete=models.SET_NULL, null=True, blank=True
+        "subscriptions.SubscriptionPlan",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
     )
     subscription_status = models.CharField(
         max_length=20,
@@ -255,6 +258,15 @@ class PropertyOwnership(TimeStampedUUIDModel):
 
     def __str__(self):
         return f"{self.owner} owns {self.percentage}% of {self.property}"
+
+
+class PaymentOwnerSplit(models.Model):
+    payment = models.ForeignKey(
+        "payments.Payment", on_delete=models.CASCADE, related_name="owner_splits"
+    )
+    owner = models.ForeignKey("properties.Owner", on_delete=models.PROTECT)
+    amount = models.DecimalField(max_digits=10, decimal_places=0)
+    percentage = models.DecimalField(max_digits=5, decimal_places=2)
 
 
 class Manager(TimeStampedUUIDModel):
@@ -461,11 +473,66 @@ class UnitImage(models.Model):
     image = models.ImageField(upload_to="properties/units/")
 
 
-class PaymentConfiguration(models.Model):
-    property = models.OneToOneField(
-        "Property", on_delete=models.CASCADE, related_name="payment_config"
+class OwnerPaymentConfig(TimeStampedUUIDModel):
+    """
+    Landlord‑global default fee rates and distribution rules.
+    Used when a property does not override them.
+    """
+
+    owner = models.OneToOneField(
+        "properties.Owner",
+        on_delete=models.CASCADE,
+        related_name="payment_config",
+        verbose_name=_("Owner"),
     )
+
+    platform_fee_percent = models.DecimalField(
+        _("Platform Fee (%)"),
+        max_digits=5,
+        decimal_places=2,
+        default=1.0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    platform_fee_cap = models.PositiveIntegerField(
+        _("Platform Fee Cap (XAF)"), default=1000
+    )
+    gateway_fee_percent = models.DecimalField(
+        _("Gateway Fee (%)"),
+        max_digits=5,
+        decimal_places=2,
+        default=2.0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    fixed_extra_fee = models.DecimalField(
+        _("Fixed Extra Fee (XAF)"), max_digits=10, decimal_places=0, default=0
+    )
+
+    # Payer choices
+    PAYER_CHOICES = [
+        ("tenant", "Tenant"),
+        ("landlord", "Landlord"),
+        ("split", "Split 50/50"),
+    ]
+
+    platform_fee_payer = models.CharField(
+        _("Platform Fee Payer"), max_length=10, choices=PAYER_CHOICES, default="tenant"
+    )
+    gateway_fee_payer = models.CharField(
+        _("Gateway Fee Payer"), max_length=10, choices=PAYER_CHOICES, default="tenant"
+    )
+    wallet_fee_payer = models.CharField(
+        _("Wallet Fee Payer"), max_length=10, choices=PAYER_CHOICES, default="tenant"
+    )
+
+    gateway_methods = models.JSONField(
+        _("Gateway Methods"),
+        default=list,
+        blank=True,
+        help_text=_("e.g., ['mtn_momo', 'orange_money']"),
+    )
+
     pricing_model = models.CharField(
+        _("Pricing Model"),
         max_length=20,
         choices=[
             ("per_transaction", "Per‑transaction"),
@@ -473,24 +540,155 @@ class PaymentConfiguration(models.Model):
         ],
         default="per_transaction",
     )
-    subscription_plan = models.ForeignKey(
-        "payments.SubscriptionPlan",
+
+    is_active = models.BooleanField(_("Active"), default=True)
+
+    class Meta:
+        verbose_name = _("Owner Payment Config")
+        verbose_name_plural = _("Owner Payment Configs")
+
+    def __str__(self):
+        return f"Payment Config for {self.owner.user.email}"
+
+
+class PropertyPaymentConfig(TimeStampedUUIDModel):
+    """
+    Per‑property override of fee rules and default payment plan template.
+    Highest priority (after fee_overrides JSON) in the fee resolution chain.
+    """
+
+    property = models.OneToOneField(
+        Property,
+        on_delete=models.CASCADE,
+        related_name="property_payment_config",
+        verbose_name=_("Property"),
+    )
+
+    pricing_model = models.CharField(
+        _("Pricing Model"),
+        max_length=20,
+        choices=[
+            ("per_transaction", "Per‑transaction"),
+            ("subscription", "Subscription"),
+        ],
+        default="per_transaction",
+    )
+
+    PAYER_CHOICES = [
+        ("tenant", "Tenant"),
+        ("landlord", "Landlord"),
+        ("split", "Split 50/50"),
+    ]
+
+    platform_fee_payer = models.CharField(
+        _("Platform Fee Payer"), max_length=10, choices=PAYER_CHOICES, default="tenant"
+    )
+    gateway_fee_payer = models.CharField(
+        _("Gateway Fee Payer"), max_length=10, choices=PAYER_CHOICES, default="tenant"
+    )
+    wallet_fee_payer = models.CharField(
+        _("Wallet Fee Payer"), max_length=10, choices=PAYER_CHOICES, default="tenant"
+    )
+
+    gateway_methods = models.JSONField(_("Gateway Methods"), default=list, blank=True)
+
+    # Highest priority override – bypasses all other rates
+    fee_overrides = models.JSONField(
+        _("Fee Overrides"),
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Override rates, caps, fixed fees for this property. "
+            "Example: {'platform_fee_percent': 0.5, 'platform_fee_cap': 500}"
+        ),
+    )
+
+    # Default payment plan template used when creating a new agreement on this property
+    default_payment_plan = models.ForeignKey(
+        "payments.PaymentPlan",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        help_text="Required if pricing_model = 'subscription'",
+        related_name="default_for_properties",
+        verbose_name=_("Default Payment Plan"),
+        help_text=_("Template copied when a new rental agreement is created."),
     )
-    platform_fee_payer = models.CharField(
-        max_length=10,
-        choices=[("tenant", "Tenant"), ("landlord", "Landlord"), ("split", "Shared")],
-        default="tenant",
+
+    # Wallet and manual payment features
+    enable_wallet_payments = models.BooleanField(
+        _("Enable Wallet Payments"), default=True
     )
-    gateway_fee_payer = models.CharField(
-        max_length=10,
-        choices=[("tenant", "Tenant"), ("landlord", "Landlord"), ("split", "Shared")],
-        default="tenant",
+    allow_manual_payments = models.BooleanField(
+        _("Allow Manual Payments"), default=False
     )
-    gateway_methods = models.JSONField(default=list, blank=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    manual_payment_requires_verification = models.BooleanField(
+        _("Manual Payment Requires Tenant Verification"), default=True
+    )
+
+    currency = models.CharField(
+        _("Currency"),
+        max_length=3,
+        choices=[("XAF", "XAF"), ("USD", "USD"), ("EUR", "EUR")],
+        default="XAF",
+    )
+
+    is_active = models.BooleanField(_("Active"), default=True)
+
+    class Meta:
+        verbose_name = _("Property Payment Config")
+        verbose_name_plural = _("Property Payment Configs")
+
+    def __str__(self):
+        return f"Payment Config for {self.property.name}"
+
+    def get_effective_config(self, owner):
+        from apps.core.models import PlatformSettings
+
+        config = PlatformSettings.get_settings()
+
+        # 1. Owner-level overrides
+        if hasattr(owner, "payment_config"):  # OwnerPaymentConfig
+            oc = owner.payment_config
+            for field in [
+                "platform_fee_percent",
+                "platform_fee_cap",
+                "gateway_fee_percent",
+                "fixed_extra_fee",
+            ]:
+                if getattr(oc, field, None) is not None:
+                    config[field] = getattr(oc, field)
+
+        # 2. Property fields
+        config["pricing_model"] = self.pricing_model
+        config["platform_fee_payer"] = self.platform_fee_payer
+        config["gateway_fee_payer"] = self.gateway_fee_payer
+        config["wallet_fee_payer"] = self.wallet_fee_payer
+        config["gateway_methods"] = self.gateway_methods
+
+        # 3. Property fee_overrides (highest priority)
+        for k, v in self.fee_overrides.items():
+            config[k] = v
+
+        # 4. Apply subscription status (critical!)
+        if owner.subscription_status in ["active", "trial"]:
+            # If pricing_model == 'subscription', waive fees entirely
+            if config.get("pricing_model") == "subscription":
+                config["platform_fee_percent"] = 0
+                config["gateway_fee_percent"] = 0
+                config["fixed_extra_fee"] = 0
+            # Else apply discounts from subscription plan
+            elif owner.subscription_plan:
+                plan = owner.subscription_plan
+                if plan.transaction_fee_discount_percent:
+                    config["platform_fee_percent"] = max(
+                        0,
+                        config.get("platform_fee_percent")
+                        - plan.transaction_fee_discount_percent,
+                    )
+                if plan.platform_fee_cap_override is not None:
+                    config["platform_fee_cap"] = plan.platform_fee_cap_override
+        # If subscription is inactive, always use per‑transaction pricing_model (no fee waiver)
+        else:
+            config["pricing_model"] = "per_transaction"
+
+        return config

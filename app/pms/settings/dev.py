@@ -51,7 +51,24 @@ CACHES = {
 # -----------------------------
 # Email backend (development)
 # -----------------------------
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+EMAIL_BACKEND = env("EMAIL_BACKEND")  # 'database' or 'smtp'
+
+# Fallback SMTP settings (used only if EMAIL_BACKEND='smtp' or no active EmailConfiguration)
+EMAIL_HOST = env("EMAIL_HOST")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+DEFAULT_FROM_EMAIL = "Blizton <noreply@blizton.com>"
+
+print(
+    EMAIL_HOST,
+    EMAIL_BACKEND,
+    EMAIL_HOST_USER,
+    EMAIL_HOST_PASSWORD,
+    EMAIL_USE_TLS,
+    DEFAULT_FROM_EMAIL,
+)
 
 # -----------------------------
 # Static & Media files

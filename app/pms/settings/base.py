@@ -44,7 +44,7 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 DJANGO_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
-    # "django.contrib.sites",
+    "django.contrib.sites",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
@@ -54,7 +54,6 @@ DJANGO_APPS = [
 LOCAL_APPS = [
     "apps.users.apps.UsersConfig",
     "apps.core.apps.CoreConfig",
-    "apps.notifications.apps.NotificationsConfig",
     "apps.tenants.apps.TenantsConfig",
     "apps.properties.apps.PropertiesConfig",
     "apps.payments.apps.PaymentsConfig",
@@ -339,8 +338,8 @@ SIMPLE_JWT = {
 DJOSER = {
     "LOGIN_FIELD": "email",
     "USER_CREATE_PASSWORD_RETYPE": True,
-    "SEND_ACTIVATION_EMAIL": False,
-    "SEND_CONFIRMATION_EMAIL": False,
+    "SEND_ACTIVATION_EMAIL": True,
+    "SEND_CONFIRMATION_EMAIL": True,
     "ACTIVATION_URL": "activate/{uid}/{token}",
     "PASSWORD_RESET_CONFIRM_URL": "password-reset/{uid}/{token}",
     "USERNAME_RESET_CONFIRM_URL": "username-reset/{uid}/{token}",
@@ -362,6 +361,14 @@ DJOSER = {
         "password_change": ["rest_framework.permissions.IsAuthenticated"],
         "password_change_confirm": ["rest_framework.permissions.IsAuthenticated"],
         "user_list": ["rest_framework.permissions.IsAuthenticated"],
+    },
+    "EMAIL": {
+        "activation": "apps.users.email.CustomActivationEmail",
+        "confirmation": "apps.users.email.CustomConfirmationEmail",
+        "password_reset": "apps.users.email.CustomPasswordResetEmail",
+        "password_reset_confirmation": "apps.users.email.CustomPasswordResetConfirmationEmail",
+        "username_reset": "apps.users.email.CustomUsernameResetEmail",
+        "username_reset_confirmation": "apps.users.email.CustomUsernameResetConfirmationEmail",
     },
     "HIDE_USERS": False,
     "PASSWORD_RESET_SHOW_EMAIL_NOT_FOUND": True,
@@ -387,9 +394,27 @@ MEDIA_ROOT = BASE_DIR / "mediafiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    "generate-subscription-invoices": {
+        "task": "apps.subscriptions.tasks.generate_subscription_invoices",
+        "schedule": crontab(day_of_month="1", hour=2, minute=0),
+    },
+    "expire-subscriptions": {
+        "task": "apps.subscriptions.tasks.expire_subscriptions",
+        "schedule": crontab(hour=3, minute=0),
+    },
+    "process-disbursements": {
+        "task": "apps.payments.tasks.process_disbursements",
+        "schedule": crontab(day_of_week="mon", hour=8, minute=0),  # weekly
+    },
+}
+
+
 # --- Notifications ---
 SITE_NAME = env("SITE_NAME", default="Django Starter")
-EMAIL_BACKEND = env("EMAIL_BACKEND", default="database")  # 'database' or 'smtp'
+EMAIL_BACKEND = env("EMAIL_BACKEND")  # 'database' or 'smtp'
 
 # Fallback SMTP settings (used only if EMAIL_BACKEND='smtp' or no active EmailConfiguration)
 EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")
@@ -397,7 +422,7 @@ EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@example.com")
+DEFAULT_FROM_EMAIL = "Blizton <noreply@blizton.com>"
 # -----------------------------
 # Logger configuration
 # -----------------------------

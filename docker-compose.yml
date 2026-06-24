@@ -54,22 +54,22 @@ services:
         networks:
             - pms-network
 
-    # flower:
-    #     build:
-    #         context: .
-    #         dockerfile: ./docker/local/django/Dockerfile
-    #     command: /start-flower
-    #     volumes:
-    #         - .:/app
-    #     env_file:
-    #         - app/.env
-    #     ports:
-    #         - 5557:5555
-    #     depends_on:
-    #         - redis
-    #         - postgres-db
-    #     networks:
-    #         - pms-network
+    flower:
+        build:
+            context: .
+            dockerfile: ./docker/local/django/Dockerfile
+        command: /start-flower
+        volumes:
+            - .:/app
+        env_file:
+            - app/.env
+        ports:
+            - 5557:5555
+        depends_on:
+            - redis
+            - postgres-db
+        networks:
+            - pms-network
 
     nginx:
         restart: always

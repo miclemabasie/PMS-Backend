@@ -24,33 +24,75 @@ from datetime import timedelta
 logger = logging.getLogger(__name__)
 
 
+# ===================================================================
+# SUBSCRIPTION QUOTA HELPERS (using new SubscriptionPlan)
+# ===================================================================
+# def can_add_property(owner):
+#     """Check if owner can create a new property based on their subscription plan."""
+#     plan = owner.subscription_plan
+#     if not plan:
+#         return False, "No active subscription plan"
+
+#     # Use the feature group to get the quota
+#     max_props = plan.get_quota("max_properties")
+#     if max_props is not None:
+#         current_count = owner.properties.count()
+#         if current_count >= max_props:
+#             return (
+#                 False,
+#                 f"Your plan allows only {max_props} properties.",
+#             )
+#     return True, ""
+
+
 def can_add_property(owner):
-    if not owner.subscription_plan:
-        return False, "No active subscription plan"
-    if owner.subscription_plan.max_properties:
-        current_count = owner.properties.count()
-        if current_count >= owner.subscription_plan.max_properties:
-            return (
-                False,
-                f"Your plan allows only {owner.subscription_plan.max_properties} properties",
-            )
+    plan = owner.subscription_plan  # Always present
+    max_props = plan.get_quota("max_properties")
+    if max_props is not None and owner.properties.count() >= max_props:
+        return False, f"Your plan allows only {max_props} properties."
     return True, ""
 
 
-def can_add_unit(property, owner):
-    if owner.subscription_plan.max_units_total:
+# def can_add_unit(property_obj, owner):
+#     """Check if owner can add a new unit to a given property."""
+#     plan = owner.subscription_plan
+#     if not plan:
+#         return False, "No active subscription plan"
+
+#     max_total = plan.get_quota("max_units_total")
+#     if max_total is not None:
+#         # Count total units across all properties owned by this owner
+#         total_units = Unit.objects.filter(property__owners=owner).count()
+#         if total_units >= max_total:
+#             return (
+#                 False,
+#                 f"Your plan allows only {max_total} units total.",
+#             )
+
+#     max_per_property = plan.get_quota("max_units_per_property")
+#     if max_per_property is not None:
+#         units_in_property = property_obj.units.count()
+#         if units_in_property >= max_per_property:
+#             return (
+#                 False,
+#                 f"Your plan allows only {max_per_property} units per property.",
+#             )
+#     return True, ""
+
+
+def can_add_unit(property_obj, owner):
+    plan = owner.subscription_plan
+    max_total = plan.get_quota("max_units_total")
+    if max_total is not None:
         total_units = Unit.objects.filter(property__owners=owner).count()
-        if total_units >= owner.subscription_plan.max_units_total:
+        if total_units >= max_total:
+            return False, f"Your plan allows only {max_total} units total."
+    max_per_property = plan.get_quota("max_units_per_property")
+    if max_per_property is not None:
+        if property_obj.units.count() >= max_per_property:
             return (
                 False,
-                f"Your plan allows only {owner.subscription_plan.max_units_total} units total",
-            )
-    if owner.subscription_plan.max_units_per_property:
-        units_in_property = property.units.count()
-        if units_in_property >= owner.subscription_plan.max_units_per_property:
-            return (
-                False,
-                f"Your plan allows only {owner.subscription_plan.max_units_per_property} units per property",
+                f"Your plan allows only {max_per_property} units per property.",
             )
     return True, ""
 
@@ -68,6 +110,15 @@ class OwnerService(BaseService[Owner]):
         owner = self.repository.create(**data)
         owner.user.role = "landlord"
         owner.user.save()
+        # Assign Free plan by default if not already set
+        from apps.subscriptions.models import SubscriptionPlan
+
+        if not owner.subscription_plan:
+            free_plan = SubscriptionPlan.objects.filter(
+                name="Free Plan", is_active=True
+            ).first()
+            if free_plan:
+                self.assign_subscription(owner, free_plan.id)
         return owner
 
     def get_or_create_for_user(self, user):
@@ -88,9 +139,10 @@ class OwnerService(BaseService[Owner]):
         """
         Assign a subscription plan to an owner (activates it).
         - owner: Owner object
-        - plan_id: UUID of the SubscriptionPlan
+        - plan_id: UUID of the SubscriptionPlan (new model)
         """
-        from apps.payments.models import SubscriptionPlan
+        # ✅ Use the new SubscriptionPlan from subscriptions app
+        from apps.subscriptions.models import SubscriptionPlan
 
         try:
             plan = SubscriptionPlan.objects.get(id=plan_id, is_active=True)
@@ -139,7 +191,6 @@ class ManagerService(BaseService[Manager]):
         except Manager.DoesNotExist:
             return self.create(user=user)
 
-    # New method
     def get_all_for_user(self, user):
         """
         Return all managers accessible by the given user.
@@ -285,7 +336,7 @@ class PropertyService(BaseService[Property]):
         if not property:
             raise ValueError(f"Property with ID {property_id} not found")
 
-        # check if poeprty does not have a primary image and set the first to be so
+        # check if property does not have a primary image and set the first to be so
         if not property.get_primary_image():
             image = PropertyImage.objects.filter(property=property).first()
             if image:

@@ -52,11 +52,8 @@ class PaymentGatewayInterface(ABC):
 
     @abstractmethod
     def process_webhook(
-        self, payload: Dict[str, Any], signature: str
+        self, payload: Dict[str, Any], headers: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        Process webhook/callback from gateway
-        """
         pass
 
     @abstractmethod

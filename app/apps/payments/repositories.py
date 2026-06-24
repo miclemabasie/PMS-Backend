@@ -1,7 +1,16 @@
 from typing import List, Optional, Dict, Any
 from django.db.models import Q
 from apps.core.base_repository import DjangoRepository
-from .models import PaymentPlan, Installment, RentalAgreement, Payment, SubscriptionPlan
+from .models import (
+    PaymentPlan,
+    Installment,
+    RentalAgreement,
+    Payment,
+    SubscriptionPlan,
+    IdempotencyKey,
+)
+from django.utils import timezone
+from datetime import timedelta
 
 
 class PaymentPlanRepository(DjangoRepository[PaymentPlan]):
@@ -132,6 +141,9 @@ class PaymentRepository(DjangoRepository[Payment]):
             )
         )
 
+    def find_by_gateway_reference(self, ref: str) -> Optional[Payment]:
+        return self.model_class.objects.filter(gateway_reference=ref).first()
+
     def find_pending_by_transaction_id(self, transaction_id: str) -> Optional[Payment]:
         try:
             return self.model_class.objects.get(
@@ -191,3 +203,22 @@ class SubscriptionPlanRepository(DjangoRepository[SubscriptionPlan]):
     def get_for_public(self):
         """Alias for find_active – used in public endpoints."""
         return self.find_active()
+
+
+class IdempotencyKeyRepository(DjangoRepository[IdempotencyKey]):
+    def get_by_key(self, key: str, resource_type: str) -> Optional[IdempotencyKey]:
+        try:
+            return self.model_class.objects.get(key=key, resource_type=resource_type)
+        except self.model_class.DoesNotExist:
+            return None
+
+    def save_response(
+        self, key: str, resource_type: str, response_data: dict, ttl_days=7
+    ):
+        expires_at = timezone.now() + timedelta(days=ttl_days)
+        return self.model_class.objects.create(
+            key=key,
+            resource_type=resource_type,
+            response_data=response_data,
+            expires_at=expires_at,
+        )

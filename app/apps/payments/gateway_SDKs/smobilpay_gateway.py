@@ -2,6 +2,8 @@ import logging
 from typing import Dict, Optional, Any
 from decimal import Decimal
 from django.utils import timezone
+import hmac
+import hashlib
 
 from . import PaymentGatewayInterface
 from apps.payments.gateway_SDKs.clients.smobilpay_client import SmobilPayClient
@@ -353,19 +355,61 @@ class SmobilPayGateway(PaymentGatewayInterface):
             return {"error": str(e), "status": "failed"}
 
     def process_webhook(
-        self, payload: Dict[str, Any], signature: str
+        self, payload: Dict[str, Any], headers: Dict[str, Any], raw_body: bytes
     ) -> Dict[str, Any]:
         """
-        Process webhook/callback from SmobilPay
-        Now delegates to the secure webhook handler
+        Verify HMAC signature and return standardised event.
+        Raises ValueError if signature invalid or payload malformed.
         """
-        logger.warning(
-            "This method should not be called directly. Use the webhook endpoint instead."
-        )
+        # 1. Get signature from header
+        signature = headers.get("X-SmobilPay-Signature")
+        if not signature:
+            raise ValueError("Missing signature header")
+
+        # 2. Get webhook secret from config
+        webhook_secret = self.config.get("webhook_secret")
+        if not webhook_secret:
+            raise ValueError("Webhook secret not configured")
+
+        # 3. Compute expected HMAC using the raw body (bytes)
+        expected = hmac.new(
+            webhook_secret.encode("utf-8"),
+            raw_body,  # raw_body is already bytes from request.body
+            hashlib.sha256,
+        ).hexdigest()
+
+        # 4. Compare signatures securely
+        if not hmac.compare_digest(expected, signature):
+            raise ValueError("Invalid signature")
+
+        # 5. Extract required fields from payload
+        # SmobilPay webhook payload structure:
+        # {
+        #   "ptn": "1234567890",
+        #   "status": "success" or "failed",
+        #   "priceLocalCur": 10000,
+        #   "localCur": "XAF",
+        #   ... other fields
+        # }
+        gateway_ref = payload.get("ptn")
+        if not gateway_ref:
+            raise ValueError("Missing 'ptn' in webhook payload")
+
+        status = payload.get("status", "").lower()
+        # Map SmobilPay status to our internal status
+        internal_status = "completed" if status == "success" else "failed"
+
+        # Amount and currency
+        amount = Decimal(str(payload.get("priceLocalCur", 0)))
+        currency = payload.get("localCur", "XAF")
+
+        # Return standardised event
         return {
-            "status": "use_webhook_endpoint",
-            "message": "Use /api/v1/payments/webhooks/smobilpay/endpoint",
-            "requires_secure_processing": True,
+            "gateway_reference": gateway_ref,
+            "status": internal_status,
+            "amount": amount,
+            "currency": currency,
+            "raw": payload,  # store the entire payload for reference
         }
 
     def initiate_refund(
