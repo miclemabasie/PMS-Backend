@@ -8,6 +8,7 @@ from .models import (
     Payment,
     SubscriptionPlan,
     IdempotencyKey,
+    AgreementAcceptance,
 )
 from django.utils import timezone
 from datetime import timedelta
@@ -129,6 +130,47 @@ class RentalAgreementRepository(DjangoRepository[RentalAgreement]):
         # No relevant role → return empty
         return qs.none()
 
+    def create_with_terms(self, unit, tenant, payment_plan, terms_text, terms_template=None, **kwargs):
+        """Create a new agreement with terms, inactive, and with acceptance token."""
+        agreement = self.model_class.objects.create(
+            unit=unit,
+            tenant=tenant,
+            payment_plan=payment_plan,
+            terms_text=terms_text,
+            terms_template=terms_template,
+            is_active=False,
+            **kwargs
+        )
+        return agreement
+
+    def get_by_acceptance_token(self, token):
+        try:
+            return self.model_class.objects.get(acceptance_token=token)
+        except self.model_class.DoesNotExist:
+            return None
+
+    def accept_agreement(self, agreement_id, user, ip_address, user_agent):
+        agreement = self.get(agreement_id)
+        if not agreement:
+            raise ValueError("Agreement not found")
+        if agreement.is_active:
+            raise ValueError("Agreement already active")
+        if agreement.tenant.user != user:
+            raise PermissionError("User is not the tenant of this agreement")
+
+        agreement.is_active = True
+        agreement.terms_accepted_at = timezone.now()
+        agreement.terms_accepted_by = user
+        agreement.save(update_fields=["is_active", "terms_accepted_at", "terms_accepted_by"])
+
+        acceptance = AgreementAcceptance.objects.create(
+            agreement=agreement,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            terms_snapshot=agreement.terms_text,
+        )
+        return agreement, acceptance
+
 
 class PaymentRepository(DjangoRepository[Payment]):
     def __init__(self):
@@ -222,3 +264,5 @@ class IdempotencyKeyRepository(DjangoRepository[IdempotencyKey]):
             response_data=response_data,
             expires_at=expires_at,
         )
+
+
