@@ -20,6 +20,7 @@ from .serializers import (
     MakePaymentSerializer,
     ManualPaymentSerializer,
     AgreementAcceptanceSerializer,
+    RentalAgreementCreateSerializer
 )
 from .permissions import (
     IsLandlordOrManagerOrSuperAdminForUnit,
@@ -129,22 +130,27 @@ class RentalAgreementCreateView(APIView):
     #     return Response(serializer.data, status=201)
 
     def post(self, request):
-        serializer = RentalAgreementSerializer(data=request.data)
+        serializer = RentalAgreementCreateSerializer(data=request.data)
         if serializer.is_valid():
-            terms_template_id = serializer.validated_data.get("terms_template_id")
-            custom_terms = serializer.validated_data.get("terms_text")
+            # Fetch objects
+            unit = self.unit_service.get_by_id(serializer.validated_data['unit_id'])
+            if not unit:
+                return Response({"error": "Unit not found"}, status=404)
 
-            if not terms_template_id and not custom_terms:
-                return Response({"error": "Either terms_template_id or terms_text must be provided."}, status=400)
+            tenant = get_object_or_404(Tenant, id=serializer.validated_data['tenant_id'])
+
+            plan = self.plan_service.get_by_id(serializer.validated_data['payment_plan_id'])
+            if not plan:
+                return Response({"error": "Payment plan not found"}, status=404)
 
             service = RentalAgreementService()
             try:
                 agreement = service.create_agreement(
-                    unit=serializer.validated_data["unit"],
-                    tenant=serializer.validated_data["tenant"],
-                    payment_plan=serializer.validated_data["payment_plan"],
-                    terms_template_id=terms_template_id,
-                    custom_terms=custom_terms,
+                    unit=unit,
+                    tenant=tenant,
+                    payment_plan=plan,
+                    terms_template_id=serializer.validated_data.get('terms_template_id'),
+                    custom_terms=serializer.validated_data.get('terms_text'),
                 )
                 output = RentalAgreementSerializer(agreement)
                 return Response(output.data, status=201)
@@ -448,6 +454,7 @@ class AgreementAcceptView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, token):
+        
         service = RentalAgreementService()
         try:
             agreement, acceptance = service.accept_agreement(
@@ -482,11 +489,15 @@ class AgreementAcceptanceDetailView(APIView):
             # Permission check
             agreement = acceptance.agreement
             user = request.user
+            print("### we are here")
             if not (user.is_superuser or
                     (hasattr(user, "owner_profile") and agreement.unit.property.ownership_records.filter(owner=user.owner_profile).exists()) or
                     (hasattr(user, "tenant_profile") and user.tenant_profile == agreement.tenant)):
+                print("### we are here 2")
+
                 return Response({"detail": "Permission denied"}, status=403)
             serializer = AgreementAcceptanceSerializer(acceptance)
             return Response(serializer.data)
         except ValueError as e:
+            print("### we are here 3", e)
             return Response({"error": str(e)}, status=404)

@@ -38,6 +38,7 @@ class RentalAgreementSerializer(serializers.ModelSerializer):
     class Meta:
         model = RentalAgreement
         fields = "__all__"
+        read_only_fields = ["id", "created_at", "updated_at",]
 
     def get_unit_name(self, obj):
         return (
@@ -46,8 +47,29 @@ class RentalAgreementSerializer(serializers.ModelSerializer):
             else f"{obj.unit.property.name} - {obj.unit.unit_type}"
         )
 
+
+class RentalAgreementCreateSerializer(serializers.Serializer):
+    """
+    Serializer for creating a rental agreement with terms.
+    Expects IDs for unit, tenant, payment plan, and optional terms.
+    """
+    unit_id = serializers.UUIDField(required=True)
+    tenant_id = serializers.UUIDField(required=True)
+    payment_plan_id = serializers.UUIDField(required=True)
+    terms_template_id = serializers.UUIDField(required=False, allow_null=True)
+    terms_text = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, data):
+        # Ensure either terms_template_id or custom terms are provided
+        if not data.get('terms_template_id') and not data.get('terms_text'):
+            raise serializers.ValidationError(
+                "Either terms_template_id or terms_text must be provided."
+            )
+        return data
+
 class AgreementAcceptanceSerializer(serializers.ModelSerializer):
     agreement = RentalAgreementSerializer(read_only=True)
+    ip_address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = AgreementAcceptance

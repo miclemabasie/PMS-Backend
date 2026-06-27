@@ -130,7 +130,7 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         super().__init__(RentalAgreementRepository())
         self.payment_repo = PaymentRepository()
         self.payment_plan_repo = PaymentPlanRepository()
-        self.template_service = TermTemplateService
+        self.template_service = TermTemplateService()
 
     @staticmethod
     def _sanitize_phone_and_method(phone: str, method: str) -> str:
@@ -320,10 +320,10 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         if not agreement:
             raise ValueError("Agreement not found")
         if not agreement.is_active:
-            raise ValueError("Agreement not yet accepted")
+            raise ValueError("Agreement has not been accepted yet")
         acceptance = getattr(agreement, "acceptance_record", None)
         if not acceptance:
-            raise ValueError("No acceptance record found")
+            raise ValueError("No acceptance record found (agreement accepted but record missing)")
         return acceptance
 
 

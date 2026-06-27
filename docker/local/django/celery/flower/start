@@ -8,7 +8,7 @@ set -o nounset
 
 
 worker_reader() {
-    celery -A djangostarter inspect ping
+    celery -A pms inspect ping
 }
 
 until worker_reader; do
@@ -20,5 +20,5 @@ done
 
 exec "$@"
 
-celery -A djangostarter flower \
+celery -A pms flower \
     --broker="${CELERY_BROKER_URL}" \
