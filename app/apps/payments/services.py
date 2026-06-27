@@ -183,17 +183,11 @@ class RentalAgreementService(BaseService[RentalAgreement]):
 
 
     def create_agreement(self, unit, tenant, payment_plan, terms_template_id=None, custom_terms=None, **kwargs):
-        """
-        Create a rental agreement with terms.
-        Requires either terms_template_id or custom_terms.
-        """
-        property_obj = unit.property
-        terms_text = None
-        terms_template = None
-
+        """Create a rental agreement with terms, coverage/installments, and inactive state."""
+        # -- Terms --
         if terms_template_id:
             terms_template = self.template_service.get_by_id(terms_template_id)
-            if not terms_template or terms_template.property != property_obj:
+            if not terms_template or terms_template.property != unit.property:
                 raise ValueError("Invalid terms template for this property")
             terms_text = terms_template.content
         elif custom_terms:
@@ -201,18 +195,63 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         else:
             raise ValueError("Terms are required. Please provide a template or custom terms.")
 
-        agreement = self.repository.create_with_terms(
-            unit=unit,
-            tenant=tenant,
-            payment_plan=payment_plan,
-            terms_text=terms_text,
-            terms_template=terms_template,
-            **kwargs
-        )
+        # -- Existing logic --
+        if payment_plan.mode == "monthly":
+            if unit.rent_duration_type != "monthly":
+                raise ValueError("PaymentPlan mode does not match Unit rent_duration_type.")
+            agreement = self.repository.create(
+                unit=unit,
+                tenant=tenant,
+                payment_plan=payment_plan,
+                start_date=timezone.now().date(),
+                coverage_end_date=timezone.now().date(),
+                terms_text=terms_text,
+                terms_template=terms_template,
+                is_active=False,
+                **kwargs
+            )
+        else:  # yearly
+            if unit.rent_duration_type != "yearly":
+                raise ValueError("PaymentPlan mode does not match Unit rent_duration_type.")
+            installments = self.payment_plan_repo.get_with_installments(payment_plan.id).installments.all().order_by("order_index")
+            installments_list = []
+            for inst in installments:
+                amount = (unit.yearly_rent * inst.percent / 100).quantize(Decimal("1"))
+                installments_list.append({
+                    "percent": float(inst.percent),
+                    "amount": str(amount),
+                    "paid_amount": "0",
+                    "remaining": str(amount),
+                    "status": "pending",
+                    "due_date": inst.due_date.isoformat() if inst.due_date else None,
+                })
+            status_data = {
+                "installments": installments_list,
+                "total_paid": "0",
+                "total_remaining": str(unit.yearly_rent),
+                "next_installment_index": 0,
+            }
+            agreement = self.repository.create(
+                unit=unit,
+                tenant=tenant,
+                payment_plan=payment_plan,
+                start_date=timezone.now().date(),
+                installment_status=status_data,
+                terms_text=terms_text,
+                terms_template=terms_template,
+                is_active=False,
+                **kwargs
+            )
 
-        # Send notification to tenant
+        # -- Mark unit occupied --
+        unit.status = "occupied"
+        unit.save(update_fields=["status"])
+
+        # -- Send email --
         self._send_agreement_creation_email(agreement)
+
         return agreement
+
 
     def _send_agreement_creation_email(self, agreement):
         frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:5734")
