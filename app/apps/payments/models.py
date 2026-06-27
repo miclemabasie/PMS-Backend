@@ -236,7 +236,7 @@ class RentalAgreement(TimeStampedUUIDModel):
     acceptance_token = models.UUIDField(
         _("Acceptance token"),
         default=uuid.uuid4,
-        # unique=True,
+        unique=True,
         editable=False,
     )
     terms_accepted_at = models.DateTimeField(_("Terms accepted at"), null=True, blank=True)

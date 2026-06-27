@@ -1,10 +1,7 @@
 from celery import shared_task
-from apps.payments.services import DisbursementService
-import logging
-
-logger = logging.getLogger(__name__)
-
+from .services import NotificationDispatcher
 
 @shared_task
-def send_notification():
-    pass
+def send_notification(channel, recipient, subject, template_name, context, **kwargs):
+    dispatcher = NotificationDispatcher()
+    dispatcher.send(channel, recipient, subject, template_name, context, **kwargs)
