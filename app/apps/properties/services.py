@@ -256,6 +256,7 @@ class PropertyService(BaseService[Property]):
             has_primary_image = PropertyImage.objects.filter(
                 property=property, is_primary=True
             ).exists()
+
             # Update images
             if images is not None:
                 property.property_images.all().delete()
@@ -263,6 +264,7 @@ class PropertyService(BaseService[Property]):
                     PropertyImage.objects.create(property=property, image=image)
 
                 if not has_primary_image:
+                    print("We are in")
                     image = PropertyImage.objects.filter(property=property).first()
                     image.is_primary = True
                     image.save()

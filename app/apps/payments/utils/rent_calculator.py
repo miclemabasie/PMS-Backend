@@ -38,22 +38,56 @@ class RentCalculator:
         self._breakdown = None
         self.effective_config = self._resolve_config()
 
+    def _ensure_decimal(self, config: dict, keys: list):
+        """Convert numeric config values to Decimal."""
+        for key in keys:
+            if key in config and config[key] is not None:
+                if not isinstance(config[key], Decimal):
+                    config[key] = Decimal(str(config[key]))
+
     def _resolve_config(self) -> Dict:
         """
         Resolve the final fee configuration using the precedence chain.
         Returns a dictionary with all fee parameters.
         """
-        # 1. Start with global defaults
-        config = PlatformSettings.get_settings()
+        # 1. Start with global defaults as a dict
+        config = {
+            "platform_fee_percent": Decimal(1.0),
+            "platform_fee_cap": 1000,
+            "gateway_fee_percent": Decimal(2.0),
+            "fixed_extra_fee": Decimal(0),
+            "gateway_methods": ["mtn_momo", "orange_money"],
+            "platform_fee_payer": "tenant",
+            "gateway_fee_payer": "tenant",
+            "wallet_fee_payer": "tenant",
+            "pricing_model": "per_transaction",
+        }
+
+        # Override with actual PlatformSettings if they exist
+        settings = PlatformSettings.get_settings()
+        config.update(
+            {
+                "platform_fee_percent": settings.platform_fee_percent,
+                "platform_fee_cap": settings.platform_fee_cap,
+                "gateway_fee_percent": settings.gateway_fee_percent,
+                "fixed_extra_fee": settings.fixed_extra_fee,
+                "gateway_methods": settings.gateway_methods,
+            }
+        )
 
         # 2. Owner-level defaults (OwnerPaymentConfig)
         if hasattr(self.owner, "payment_config"):
-            oc: OwnerPaymentConfig = self.owner.payment_config
+            oc = self.owner.payment_config
             for field in [
                 "platform_fee_percent",
                 "platform_fee_cap",
                 "gateway_fee_percent",
                 "fixed_extra_fee",
+                "platform_fee_payer",
+                "gateway_fee_payer",
+                "wallet_fee_payer",
+                "gateway_methods",
+                "pricing_model",
             ]:
                 val = getattr(oc, field, None)
                 if val is not None:
@@ -77,23 +111,30 @@ class RentCalculator:
         # 4. Apply subscription discounts or fee waiver
         if self.owner.subscription_status in ["active", "trial"]:
             plan = self.owner.subscription_plan
-            # If plan is free (price 0) and pricing_model is subscription, force per_transaction
+            # If pricing_model is subscription, waive fees (only if subscription is actually active)
             if config.get("pricing_model") == "subscription":
                 if plan and plan.monthly_price == 0:
-                    # Free plan: do not waive fees
                     config["pricing_model"] = "per_transaction"
                 else:
-                    # Paid subscription: waive all per-transaction fees
-                    config["platform_fee_percent"] = 0
-                    config["gateway_fee_percent"] = 0
-                    config["fixed_extra_fee"] = 0
+                    # Paid subscription: waive platform and fixed extra only – gateway remains
+                    config["platform_fee_percent"] = Decimal(0)
+                    # gateway_fee_percent stays as is (from owner/property/platform)
+                    config["fixed_extra_fee"] = Decimal(0)
             # Else apply discounts from plan (if any)
-            if plan and plan.transaction_fee_discount_percent:
+            if (
+                plan
+                and hasattr(plan, "transaction_fee_discount_percent")
+                and plan.transaction_fee_discount_percent
+            ):
                 discount = plan.transaction_fee_discount_percent / Decimal(100)
                 config["platform_fee_percent"] = max(
-                    0, config["platform_fee_percent"] * (1 - discount)
+                    Decimal(0), config["platform_fee_percent"] * (Decimal(1) - discount)
                 )
-            if plan and plan.platform_fee_cap_override is not None:
+            if (
+                plan
+                and hasattr(plan, "platform_fee_cap_override")
+                and plan.platform_fee_cap_override is not None
+            ):
                 config["platform_fee_cap"] = plan.platform_fee_cap_override
         else:
             # Subscription not active: force per_transaction pricing
@@ -104,27 +145,25 @@ class RentCalculator:
     def calculate(self) -> Dict[str, Decimal]:
         """Perform calculations and return breakdown."""
         config = self.effective_config
+
+        # Convert numeric config values to Decimal
+        for key in [
+            "platform_fee_percent",
+            "platform_fee_cap",
+            "gateway_fee_percent",
+            "fixed_extra_fee",
+        ]:
+            if (
+                key in config
+                and config[key] is not None
+                and not isinstance(config[key], Decimal)
+            ):
+                config[key] = Decimal(str(config[key]))
+
         net_rent = self.net_rent
 
-        # If subscription model is set AND subscription is active, no fees
-        # (already handled in _resolve_config, but re-check for safety)
-        if config.get("pricing_model") == "subscription":
-            return {
-                "platform_fee": Decimal(0),
-                "gateway_fee": Decimal(0),
-                "fixed_extra": Decimal(0),
-                "landlord_net": net_rent,
-                "tenant_total": net_rent,
-            }
-
-        # ----- Per‑transaction model -----
-        # 1. Platform fee (capped)
-        platform_percent = config["platform_fee_percent"] / Decimal(100)
-        raw_platform = net_rent * platform_percent
-        platform_fee = min(raw_platform, Decimal(config["platform_fee_cap"]))
-        platform_fee = platform_fee.quantize(Decimal("1."), rounding=ROUND_HALF_UP)
-
-        # 2. Gateway fee – only if payout method is in gateway_methods list
+        # ---- Common gateway fee calculation ----
+        # This is used in both modes
         gateway_fee = Decimal(0)
         methods = config.get("gateway_methods", [])
         payout_method = self._get_payout_method()
@@ -134,10 +173,53 @@ class RentCalculator:
                 Decimal("1."), rounding=ROUND_HALF_UP
             )
 
-        # 3. Fixed extra fee (always tenant)
+        # ---- Subscription mode: waive platform and fixed extra ----
+        if config.get("pricing_model") == "subscription":
+            platform_fee = Decimal(0)
+            fixed_extra = Decimal(0)
+
+            # Distribute only the gateway fee based on payer rules
+            tenant_total = net_rent
+            landlord_net = net_rent
+
+            gateway_payer = config.get("gateway_fee_payer", "tenant")
+            if gateway_payer == "tenant":
+                tenant_total += gateway_fee
+            elif gateway_payer == "split":
+                half = (gateway_fee / Decimal(2)).quantize(
+                    Decimal("1."), rounding=ROUND_HALF_UP
+                )
+                other_half = gateway_fee - half
+                tenant_total += half
+                landlord_net -= other_half
+            else:  # "landlord"
+                landlord_net -= gateway_fee
+
+            # No fixed extra, already zero
+            tenant_total = tenant_total.quantize(Decimal("1."), rounding=ROUND_HALF_UP)
+            landlord_net = landlord_net.quantize(Decimal("1."), rounding=ROUND_HALF_UP)
+            landlord_net = max(landlord_net, Decimal(0))
+
+            self._breakdown = {
+                "platform_fee": platform_fee,
+                "gateway_fee": gateway_fee,
+                "fixed_extra": fixed_extra,
+                "landlord_net": landlord_net,
+                "tenant_total": tenant_total,
+            }
+            return self._breakdown
+
+        # ---- Per‑transaction model ----
+        # 1. Platform fee (capped)
+        platform_percent = config["platform_fee_percent"] / Decimal(100)
+        raw_platform = net_rent * platform_percent
+        platform_fee = min(raw_platform, Decimal(config["platform_fee_cap"]))
+        platform_fee = platform_fee.quantize(Decimal("1."), rounding=ROUND_HALF_UP)
+
+        # 2. Fixed extra fee (always tenant)
         fixed_extra = Decimal(config.get("fixed_extra_fee", 0))
 
-        # 4. Distribute fees based on payer rules
+        # 3. Distribute both platform and gateway fees
         tenant_total = net_rent
         landlord_net = net_rent
 
@@ -152,7 +234,7 @@ class RentCalculator:
             other_half = platform_fee - half
             tenant_total += half
             landlord_net -= other_half
-        else:  # "landlord" (default)
+        else:  # "landlord"
             landlord_net -= platform_fee
 
         # Gateway fee distribution
@@ -166,7 +248,7 @@ class RentCalculator:
             other_half = gateway_fee - half
             tenant_total += half
             landlord_net -= other_half
-        else:  # "landlord" (default)
+        else:  # "landlord"
             landlord_net -= gateway_fee
 
         # Add fixed extra to tenant
@@ -175,7 +257,7 @@ class RentCalculator:
         # Final rounding
         tenant_total = tenant_total.quantize(Decimal("1."), rounding=ROUND_HALF_UP)
         landlord_net = landlord_net.quantize(Decimal("1."), rounding=ROUND_HALF_UP)
-        landlord_net = max(landlord_net, Decimal(0))  # safety
+        landlord_net = max(landlord_net, Decimal(0))
 
         self._breakdown = {
             "platform_fee": platform_fee,

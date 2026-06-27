@@ -104,5 +104,5 @@ class LandlordDashboardService:
             "monthly_revenue": monthly_revenue,
             "pending_repairs": pending_repairs,
             "recent_payments": recent_payments,
-            # "notifications": notifications,
+            "notifications": notifications,
         }

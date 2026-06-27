@@ -103,7 +103,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "pms.urls"
 
-DOMAIN = env("DOMAIN", default="http://localhost")
+DOMAIN = "http://localhost"
 
 # -----------------------------
 # Templates

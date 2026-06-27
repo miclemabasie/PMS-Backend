@@ -1,5 +1,6 @@
 import logging
 import uuid
+import re
 from decimal import Decimal
 from datetime import timedelta
 from django.utils import timezone
@@ -117,12 +118,64 @@ class PaymentService(BaseService[Payment]):
         result = manager.complete_from_webhook(payment, event)
         return result
 
+    def get_payments_for_agreement(self, agreement_id: str) -> List[Payment]:
+        return self.repository.find_by_agreement(agreement_id)
+
 
 class RentalAgreementService(BaseService[RentalAgreement]):
     def __init__(self):
         super().__init__(RentalAgreementRepository())
         self.payment_repo = PaymentRepository()
         self.payment_plan_repo = PaymentPlanRepository()
+
+    @staticmethod
+    def _sanitize_phone_and_method(phone: str, method: str) -> str:
+        """
+        Validate and sanitize phone number for the given payment method.
+        Strips +237 or 237 prefix if present, then validates exactly 9 digits.
+        Returns the raw 9‑digit string.
+        Raises ValueError if invalid.
+        """
+        if not phone:
+            raise ValueError("Phone number is required for mobile money payments.")
+
+        # Remove spaces, dashes, parentheses, etc.
+        phone = re.sub(r"[\s\-\(\)]+", "", phone)
+
+        # Remove '+' and any country code if present
+        if phone.startswith("+237"):
+            digits = phone[4:]  # after '+237'
+        elif phone.startswith("237"):
+            digits = phone[3:]  # after '237'
+        else:
+            digits = phone
+
+        # Ensure we have exactly 9 digits
+        if len(digits) != 9 or not digits.isdigit():
+            raise ValueError(
+                "Invalid phone number. Please provide a valid 9‑digit number, optionally with +237 or 237 prefix."
+            )
+
+        # Validate based on payment method
+        if method == "mtn_momo":
+            # MTN: 650-654, 670-679, 680-686
+            if not re.match(r"^(65[0-4]|67\d|68[0-6])\d{6}$", digits):
+                raise ValueError(
+                    "Invalid MTN MoMo number. Must start with: "
+                    "650-654, 670-679, or 680-686."
+                )
+        elif method == "orange_money":
+            # Orange: 655-659, 687-689, 690-699
+            if not re.match(r"^(65[5-9]|687|688|689|69\d)\d{6}$", digits):
+                raise ValueError(
+                    "Invalid Orange Money number. Must start with: "
+                    "655-659, 687-689, or 690-699."
+                )
+        else:
+            # Non‑mobile money – no validation
+            return digits
+
+        return digits
 
     def create_agreement(self, unit, tenant, payment_plan) -> RentalAgreement:
         if (
@@ -292,6 +345,10 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         months: int = None,
         installment_index: int = None,
     ) -> Payment:
+
+        if payment_method in ["mtn_momo", "orange_money"]:
+            phone_number = self._sanitize_phone_and_method(phone_number, payment_method)
+
         manager = PaymentManager(agreement)
         return manager.initiate_payment(
             amount, payment_method, phone_number, provider, months, installment_index

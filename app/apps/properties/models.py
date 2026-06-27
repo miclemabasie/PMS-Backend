@@ -213,6 +213,8 @@ class Property(TimeStampedUUIDModel):
             ownership = self.ownership_records.first()
         return ownership.owner if ownership else None
 
+    
+
 
 class PropertyImage(models.Model):
     property = models.ForeignKey(

@@ -175,7 +175,7 @@ class TenantDiscoveryToggleView(APIView):
 
         try:
             updated_tenant = self.service.update_discovery_status(
-                str(tenant.pkid), is_discoverable
+                str(tenant.id), is_discoverable
             )
 
             return Response(
@@ -253,7 +253,7 @@ class AdminTenantControlView(APIView):
 
         try:
             updated_tenant = self.service.admin_update_tenant_status(
-                str(tenant.pkid), updates
+                str(tenant.id), updates
             )
 
             return Response(

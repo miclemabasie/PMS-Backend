@@ -344,7 +344,7 @@ class PaymentManager:
                 return {"success": False, "error": "Payment gateway not configured"}
 
             gateway = gateway_factory.create_gateway("smobilpay", gateway_config)
-
+            print("@@@@@@@@@@@@@@@@@ payment phone", phone)
             intent = gateway.create_payment_intent(
                 amount=amount,
                 currency="XAF",

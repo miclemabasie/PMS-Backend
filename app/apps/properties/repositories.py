@@ -146,7 +146,7 @@ class UnitRepository(DjangoRepository[Unit]):
         super().__init__(Unit)
 
     def find_by_property(self, property_id):
-        return self.model_class.objects.filter(property_id=property_id)
+        return self.model_class.objects.filter(property__id=property_id)
 
     def find_by_user(self, user, status=None):
         """
