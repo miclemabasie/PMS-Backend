@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import PaymentPlan, Installment, RentalAgreement, Payment, SubscriptionPlan
+from .models import PaymentPlan, Installment, RentalAgreement, Payment, SubscriptionPlan, AgreementAcceptance
 from apps.properties.serializers import UnitSerializer
 from apps.tenants.serializers import TenantMinimalSerializer
 from decimal import Decimal
@@ -28,6 +28,13 @@ class RentalAgreementSerializer(serializers.ModelSerializer):
         source="payment_plan.name", read_only=True
     )
 
+    terms_template_id = serializers.UUIDField(required=False, allow_null=True, write_only=True)
+    terms_text = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    acceptance_token = serializers.UUIDField(read_only=True)
+    terms_accepted_at = serializers.DateTimeField(read_only=True)
+    terms_accepted_by = serializers.StringRelatedField(read_only=True)
+    is_active = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = RentalAgreement
         fields = "__all__"
@@ -38,6 +45,13 @@ class RentalAgreementSerializer(serializers.ModelSerializer):
             if obj.unit.unit_number
             else f"{obj.unit.property.name} - {obj.unit.unit_type}"
         )
+
+class AgreementAcceptanceSerializer(serializers.ModelSerializer):
+    agreement = RentalAgreementSerializer(read_only=True)
+
+    class Meta:
+        model = AgreementAcceptance
+        fields = "__all__"
 
 
 class PaymentSerializer(serializers.ModelSerializer):
