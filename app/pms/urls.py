@@ -12,7 +12,7 @@ urlpatterns = [
     path("api/v1/tenants/", include("apps.tenants.urls", namespace="tenants")),
     path("api/v1/properties/", include("apps.properties.urls", namespace="properties")),
     path("api/v1/payments/", include("apps.payments.urls", namespace="payments")),
-    path("api/v1/", include("apps.notifications.urls", namespace="notifications")),
+    # path("api/v1/", include("apps.notifications.urls", namespace="notifications")),
     # app/pms/urls.py - add line under other includes
     path("api/v1/reports/", include("apps.reports.urls", namespace="reports")),
     path("api/v1/dashboard/", include("apps.dashboard.urls", namespace="dashboard")),

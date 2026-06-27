@@ -199,7 +199,7 @@ def payment(rental_agreement):
 
 
 # ========== MAINTENANCE & EXPENSE FIXTURES ==========
-from apps.properties.models import Property, Owner, Manager, Unit, PaymentConfiguration
+from apps.properties.models import Property, Owner, Manager, Unit
 from apps.maintenance.models import (
     Vendor,
     MaintenanceRequest,

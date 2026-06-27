@@ -1,5 +1,6 @@
 import logging
 import uuid
+import re
 from decimal import Decimal
 from datetime import timedelta
 from django.utils import timezone
@@ -10,16 +11,26 @@ from .repositories import (
     InstallmentRepository,
     RentalAgreementRepository,
     PaymentRepository,
-    SubscriptionPlanRepository,
+    IdempotencyKeyRepository,
 )
+from apps.subscriptions.repositories import SubscriptionPlanRepository
 from .managers.payment_manager import make_json_serializable
-from .dummy_payment_processor import DummyPaymentProcessor
-from .models import PaymentPlan, Installment, RentalAgreement, Payment, SubscriptionPlan
+from .models import (
+    PaymentPlan,
+    Installment,
+    RentalAgreement,
+    Payment,
+    Disbursement,
+    LedgerEntry,
+    AuditLog,
+)
+
+# New subscription models (from the new app)
+from apps.subscriptions.models import SubscriptionPlan
 from typing import Optional, List, Dict, Any
 from .permissions import CanManageRentalAgreement
 from django.core.exceptions import PermissionDenied
 from .permissions import user_can_manage_agreement
-from apps.properties.models import PaymentConfiguration
 from .utils.rent_calculator import RentCalculator
 from apps.payments.managers.payment_manager import PaymentManager
 
@@ -30,21 +41,6 @@ class PaymentPlanService(BaseService[PaymentPlan]):
     def __init__(self):
         super().__init__(PaymentPlanRepository())
         self.installment_repo = InstallmentRepository()
-
-    # def add_installment(
-    #     self, plan_id: str, percent: Decimal, due_date=None, order_index=None
-    # ) -> Installment:
-    #     plan = self.get_by_id(plan_id)
-    #     if not plan:
-    #         raise ValueError("Payment plan not found")
-    #     if order_index is None:
-    #         order_index = len(self.installment_repo.filter_by_plan(plan_id))
-    #     return self.installment_repo.create(
-    #         payment_plan=plan,
-    #         percent=percent,
-    #         due_date=due_date,
-    #         order_index=order_index,
-    #     )
 
     def get_plan_with_installments(self, plan_id: str):
         return self.repository.get_with_installments(plan_id)
@@ -60,7 +56,6 @@ class PaymentPlanService(BaseService[PaymentPlan]):
         return None
 
     def get_installments(self, plan_id: str) -> List[Installment]:
-        # No need to fetch plan first; repository filter will return empty if plan missing.
         return self.installment_repo.filter_by_plan(plan_id)
 
     def add_installment(
@@ -73,7 +68,6 @@ class PaymentPlanService(BaseService[PaymentPlan]):
         if order_index is None:
             order_index = len(self.installment_repo.filter_by_plan(plan_id))
 
-        # ✅ Correct existence check
         existing = self.installment_repo.get_by_plan_and_order(plan_id, order_index)
         if existing:
             raise ValueError(
@@ -88,16 +82,41 @@ class PaymentPlanService(BaseService[PaymentPlan]):
         )
 
     def get_payments_for_agreement(self, agreement_id: str) -> List[Payment]:
-
         return self.repository.find_by_agreement(agreement_id)
 
     def get_active_plans(self) -> List[PaymentPlan]:
         return self.repository.find_active()
 
 
+from apps.payments.gateway_SDKs.gateway_factory import gateway_factory
+from apps.payments.repositories import PaymentRepository
+from apps.payments.managers.payment_manager import PaymentManager
+from django.conf import settings
+
+
 class PaymentService(BaseService[Payment]):
     def __init__(self):
         super().__init__(PaymentRepository())
+
+    def process_webhook(
+        self, gateway_name: str, payload: dict, headers: dict, raw_body: bytes
+    ) -> dict:
+        config = getattr(settings, "SMOBILPAY_CONFIG", {})
+        gateway = gateway_factory.create_gateway(gateway_name, config)
+        # We need to pass raw_body for signature verification; we'll modify process_webhook to accept raw_body
+        event = gateway.process_webhook(
+            payload, headers, raw_body
+        )  # we'll extend signature
+        gateway_ref = event.get("gateway_reference")
+        if not gateway_ref:
+            raise ValueError("Missing gateway_reference")
+        payment_repo = PaymentRepository()
+        payment = payment_repo.find_by_gateway_reference(gateway_ref)
+        if not payment:
+            return {"status": "ignored"}
+        manager = PaymentManager(payment.agreement)
+        result = manager.complete_from_webhook(payment, event)
+        return result
 
     def get_payments_for_agreement(self, agreement_id: str) -> List[Payment]:
         return self.repository.find_by_agreement(agreement_id)
@@ -108,6 +127,55 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         super().__init__(RentalAgreementRepository())
         self.payment_repo = PaymentRepository()
         self.payment_plan_repo = PaymentPlanRepository()
+
+    @staticmethod
+    def _sanitize_phone_and_method(phone: str, method: str) -> str:
+        """
+        Validate and sanitize phone number for the given payment method.
+        Strips +237 or 237 prefix if present, then validates exactly 9 digits.
+        Returns the raw 9‑digit string.
+        Raises ValueError if invalid.
+        """
+        if not phone:
+            raise ValueError("Phone number is required for mobile money payments.")
+
+        # Remove spaces, dashes, parentheses, etc.
+        phone = re.sub(r"[\s\-\(\)]+", "", phone)
+
+        # Remove '+' and any country code if present
+        if phone.startswith("+237"):
+            digits = phone[4:]  # after '+237'
+        elif phone.startswith("237"):
+            digits = phone[3:]  # after '237'
+        else:
+            digits = phone
+
+        # Ensure we have exactly 9 digits
+        if len(digits) != 9 or not digits.isdigit():
+            raise ValueError(
+                "Invalid phone number. Please provide a valid 9‑digit number, optionally with +237 or 237 prefix."
+            )
+
+        # Validate based on payment method
+        if method == "mtn_momo":
+            # MTN: 650-654, 670-679, 680-686
+            if not re.match(r"^(65[0-4]|67\d|68[0-6])\d{6}$", digits):
+                raise ValueError(
+                    "Invalid MTN MoMo number. Must start with: "
+                    "650-654, 670-679, or 680-686."
+                )
+        elif method == "orange_money":
+            # Orange: 655-659, 687-689, 690-699
+            if not re.match(r"^(65[5-9]|687|688|689|69\d)\d{6}$", digits):
+                raise ValueError(
+                    "Invalid Orange Money number. Must start with: "
+                    "655-659, 687-689, or 690-699."
+                )
+        else:
+            # Non‑mobile money – no validation
+            return digits
+
+        return digits
 
     def create_agreement(self, unit, tenant, payment_plan) -> RentalAgreement:
         if (
@@ -128,7 +196,6 @@ class RentalAgreementService(BaseService[RentalAgreement]):
                 is_active=True,
             )
         else:  # yearly
-            # Build installment_status from the plan's installments
             installments = (
                 self.payment_plan_repo.get_with_installments(payment_plan.id)
                 .installments.all()
@@ -169,21 +236,15 @@ class RentalAgreementService(BaseService[RentalAgreement]):
 
     def get_available_payment_options(self, agreement: RentalAgreement) -> list:
         plan = agreement.payment_plan
-        config = agreement.unit.property.payment_config
-        if not config:
-            config = PaymentConfiguration.objects.create(
-                property=agreement.unit.property
-            )  # fallback
-        landlord_payout_method = (
-            agreement.unit.property.get_payout_owner().preferred_payout_method
-        )
+        property_obj = agreement.unit.property
+        owner = property_obj.get_payout_owner()  # Primary owner
 
         if plan.mode == "monthly":
             options = []
             terms = plan.allowed_monthly_terms or range(1, plan.max_months + 1)
             for months in terms:
                 net_rent = agreement.unit.monthly_rent * months
-                calc = RentCalculator(net_rent, config, landlord_payout_method)
+                calc = RentCalculator(net_rent, property_obj, owner)
                 tenant_total = calc.get_tenant_total()
                 options.append(
                     {
@@ -228,6 +289,51 @@ class RentalAgreementService(BaseService[RentalAgreement]):
     def get_all_agreements(self):
         return self.repository.find_all()
 
+    def make_payment_with_idempotency(
+        self,
+        agreement: RentalAgreement,
+        amount: Decimal,
+        payment_method: str,
+        phone_number: Optional[str] = None,
+        provider: Optional[str] = None,
+        months: Optional[int] = None,
+        installment_index: Optional[int] = None,
+        idempotency_key: Optional[str] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Initiate a payment with idempotency support.
+        If idempotency_key is provided and already processed, returns cached response.
+        """
+        if idempotency_key:
+            repo = IdempotencyKeyRepository()
+            cached = repo.get_by_key(idempotency_key, "payment")
+            if cached:
+                # Return the cached serialized response
+                return cached.response_data
+
+        # Call the existing make_payment method (which returns a Payment instance)
+        payment = self.make_payment(
+            agreement=agreement,
+            amount=amount,
+            payment_method=payment_method,
+            phone_number=phone_number,
+            provider=provider,
+            months=months,
+            installment_index=installment_index,
+            **kwargs,
+        )
+
+        # Serialize the payment for response caching
+        from .serializers import PaymentSerializer
+
+        response_data = PaymentSerializer(payment).data
+
+        if idempotency_key:
+            repo.save_response(idempotency_key, "payment", response_data)
+
+        return response_data
+
     @transaction.atomic
     def make_payment(
         self,
@@ -236,18 +342,19 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         payment_method: str,
         phone_number: str = None,
         provider: str = None,
-        months: int = None,  # new
-        installment_index: int = None,  # new
+        months: int = None,
+        installment_index: int = None,
     ) -> Payment:
+
+        if payment_method in ["mtn_momo", "orange_money"]:
+            phone_number = self._sanitize_phone_and_method(phone_number, payment_method)
+
         manager = PaymentManager(agreement)
         return manager.initiate_payment(
             amount, payment_method, phone_number, provider, months, installment_index
         )
 
     def verify_payment(self, payment_id: str) -> Dict[str, Any]:
-        """Phase 2: verify pending payment and complete if successful."""
-        from apps.payments.managers.payment_manager import PaymentManager
-
         payment = self.payment_repo.get(payment_id)
         if not payment:
             raise ValueError("Payment not found")
@@ -278,18 +385,6 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         reason: str = "",
         mutual_agreement: bool = False,
     ) -> RentalAgreement:
-        """
-        Terminate a rental agreement.
-        Rules:
-        - If agreement is already inactive → error.
-        - If the unit has active coverage (monthly) OR remaining balance (yearly):
-            * Landlord MUST have tenant agreement (mutual_agreement=True)
-            * Tenant can initiate termination without landlord agreement (but landlord may deny)
-            For simplicity: both can initiate but mutual_agreement required if outstanding.
-        - If no active coverage (monthly coverage_end_date < today) OR fully paid (yearly total_remaining=0):
-            * Landlord can force terminate without mutual agreement.
-            * Tenant can also request termination (landlord will be notified separately).
-        """
         agreement = self.get_by_id(agreement_id)
         if not agreement:
             raise ValueError("Agreement not found.")
@@ -299,17 +394,9 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         unit = agreement.unit
         plan = agreement.payment_plan
         is_outstanding = False
-
-        # Determine if there is any outstanding financial obligation.
-        # "Outstanding" means the tenant currently owes money (back rent or
-        # unpaid installments). Previously this flag was inverted for monthly
-        # plans: it was set when `coverage_end_date >= today` (i.e. the tenant
-        # had *prepaid* future coverage — the *good* state), which made it
-        # impossible to terminate a current tenant by mutual agreement, and
-        # conversely allowed landlords to unilaterally evict tenants in arrears.
         today = timezone.now().date()
+
         if plan.mode == "monthly":
-            # No coverage at all OR coverage already lapsed → tenant owes rent.
             if (
                 agreement.coverage_end_date is None
                 or agreement.coverage_end_date < today
@@ -322,7 +409,6 @@ class RentalAgreementService(BaseService[RentalAgreement]):
             if remaining > 0:
                 is_outstanding = True
 
-        # Determine termination type and permissions
         user_role = getattr(requested_by_user, "role", None)
         is_landlord = (
             hasattr(requested_by_user, "owner_profile") or user_role == "landlord"
@@ -346,8 +432,6 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         elif is_landlord and not is_outstanding:
             termination_type = "landlord_forced"
         elif is_tenant:
-            # Tenant can always request termination, but landlord may later approve?
-            # For simplicity, we allow tenant to terminate only if no outstanding OR mutual_agreement.
             if is_outstanding:
                 if not mutual_agreement:
                     raise PermissionDenied(
@@ -361,7 +445,6 @@ class RentalAgreementService(BaseService[RentalAgreement]):
                 "mutual_agreement" if mutual_agreement else "landlord_initiated"
             )
 
-        # Record termination details
         agreement.is_active = False
         agreement.termination_date = timezone.now().date()
         agreement.termination_reason_text = reason
@@ -377,17 +460,11 @@ class RentalAgreementService(BaseService[RentalAgreement]):
             ]
         )
 
-        # Set unit status back to vacant
         unit.status = "vacant"
         unit.save(update_fields=["status"])
-
-        # Optional: create a separate TerminationEvent model for legal logs
-        # We'll rely on the fields above.
-
         return agreement
 
     def get_agreements_for_user(self, user) -> List[RentalAgreement]:
-        """Retrieve all agreements the user has permission to view."""
         return self.repository.find_all_by_user(user)
 
     @transaction.atomic
@@ -400,18 +477,14 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         notes="",
         recorded_by_user=None,
     ):
-        """
-        Record a manual payment (cash, bank transfer, cheque) on behalf of a tenant.
-        No gateway call. Payment is immediately marked 'completed'.
-        """
         agreement = self.get_agreement_for_user(agreement_id, recorded_by_user)
         if not agreement.is_active:
             raise ValueError("Cannot record payment for inactive agreement")
 
-        # Get payment config and calculate fees (if any)
-        config = agreement.unit.property.payment_config
-        owner = agreement.unit.property.get_payout_owner()
-        payout_method = owner.preferred_payout_method if owner else "bank_transfer"
+        property_obj = agreement.unit.property
+        owner = property_obj.get_payout_owner()
+        if not owner:
+            raise ValueError("Property has no primary owner; cannot calculate fees.")
 
         # Determine net rent based on plan mode
         if agreement.payment_plan.mode == "monthly":
@@ -423,7 +496,7 @@ class RentalAgreementService(BaseService[RentalAgreement]):
                 raise ValueError("Agreement is already fully paid")
             net_rent = Decimal(status["installments"][next_idx]["remaining"])
 
-        calculator = RentCalculator(net_rent, config, payout_method)
+        calculator = RentCalculator(net_rent, property_obj, owner)
         fee_breakdown = calculator.get_breakdown()
         expected_total = fee_breakdown["tenant_total"]
 
@@ -440,7 +513,6 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         else:
             landlord_net = fee_breakdown["landlord_net"]
 
-        # Create payment record
         payment_repo = PaymentRepository()
         payment = payment_repo.create(
             agreement=agreement,
@@ -448,16 +520,14 @@ class RentalAgreementService(BaseService[RentalAgreement]):
             payment_method=payment_method,
             status="completed",
             payment_date=payment_date or timezone.now().date(),
-            period_start=timezone.now().date(),  # will be updated by agreement update
+            period_start=timezone.now().date(),
             period_end=timezone.now().date(),
             net_landlord_amount=landlord_net,
             fee_breakdown=make_json_serializable(fee_breakdown),
             notes=notes,
-            # add recorded_by if you add the field to Payment model
         )
 
-        # Update agreement coverage or installments using the existing PaymentManager logic
-        # We reuse the private _update_agreement method from PaymentManager
+        # Use PaymentManager to update agreement coverage/installments
         manager = PaymentManager(agreement)
         period_start, period_end, months_covered = manager._update_agreement(
             amount, net_rent, payment
@@ -470,7 +540,56 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         return payment
 
 
-class SubscriptionPlanService(BaseService[SubscriptionPlan]):
+# apps/payments/services.py (excerpt)
+
+from apps.subscriptions.repositories import (
+    SubscriptionPlanRepository as NewSubscriptionPlanRepository,
+)
+from apps.subscriptions.models import SubscriptionPlan as NewSubscriptionPlan
+
+
+class SubscriptionPlanService(BaseService[NewSubscriptionPlan]):
+    """
+    Service for managing subscription plans using the new subscription models
+    (from apps.subscriptions.models).
+    """
+
+    def __init__(self):
+        super().__init__(NewSubscriptionPlanRepository())  # ✅ Use new repository
+
+    def get_active_plans(self):
+        """Public list of active plans."""
+        return self.repository.find_active()
+
+    def get_default_plan(self):
+        """Return the default (cheapest) active plan."""
+        return self.repository.get_default_plan()
+
+    def create_plan(self, data):
+        """Admin only – create new subscription plan."""
+        return self.repository.create(**data)
+
+    def update_plan(self, plan_id, data):
+        """Admin only – update existing plan."""
+        plan = self.get_by_id(plan_id)
+        if not plan:
+            raise ValueError("Plan not found")
+        return self.repository.update(plan, **data)
+
+    def delete_plan(self, plan_id):
+        """Soft delete (set is_active=False) – admin only."""
+        plan = self.get_by_id(plan_id)
+        if plan:
+            plan.is_active = False
+            plan.save(update_fields=["is_active"])
+            return True
+        return False
+
+    """
+    Service for managing subscription plans using the new subscription models
+    (from apps.subscriptions.models).
+    """
+
     def __init__(self):
         super().__init__(SubscriptionPlanRepository())
 
@@ -497,3 +616,89 @@ class SubscriptionPlanService(BaseService[SubscriptionPlan]):
             plan.save(update_fields=["is_active"])
             return True
         return False
+
+
+class DisbursementService:
+    def process_pending_disbursements(self):
+        from apps.payments.models import PaymentOwnerSplit
+
+        splits = PaymentOwnerSplit.objects.filter(
+            payment__status="completed", disbursement__isnull=True
+        ).select_related("owner")
+        for split in splits:
+            # Check if already exists
+            if Disbursement.objects.filter(
+                payment_split=split, status__in=["pending", "processing", "completed"]
+            ).exists():
+                continue
+            disbursement = Disbursement.objects.create(
+                payment_split=split, status="pending"
+            )
+            try:
+                self._disburse_split(disbursement)
+            except Exception as e:
+                disbursement.status = "failed"
+                disbursement.error_message = str(e)
+                disbursement.save()
+
+    def _disburse_split(self, disbursement):
+        split = disbursement.payment_split
+        owner = split.owner
+        gateway = gateway_factory.create_gateway("smobilpay", settings.SMOBILPAY_CONFIG)
+        result = gateway.cashout(
+            amount=split.amount,
+            currency="XAF",
+            recipient_data={
+                "phone_number": str(owner.mobile_money_number),
+                "payment_method": owner.preferred_payout_method,
+            },
+            metadata={"disbursement_id": str(disbursement.id)},
+        )
+        if result.get("status") == "completed":
+            disbursement.status = "completed"
+            disbursement.gateway_reference = result.get("gateway_transaction_id")
+            disbursement.processed_at = timezone.now()
+        else:
+            disbursement.status = "failed"
+            disbursement.error_message = result.get("error", "Unknown error")
+        disbursement.save()
+
+
+class LedgerService:
+    def record_payment_ledger(self, payment):
+        breakdown = payment.fee_breakdown
+        if breakdown.get("platform_fee", 0) > 0:
+            LedgerEntry.objects.create(
+                payment=payment,
+                amount=breakdown["platform_fee"],
+                entry_type="platform_fee",
+                description=f"Platform fee for payment {payment.id}",
+            )
+        if breakdown.get("gateway_fee", 0) > 0:
+            LedgerEntry.objects.create(
+                payment=payment,
+                amount=breakdown["gateway_fee"],
+                entry_type="gateway_fee",
+                description=f"Gateway fee for payment {payment.id}",
+            )
+        # For landlord net, we can create per owner split entries or a total entry
+        for split in payment.owner_splits.all():
+            LedgerEntry.objects.create(
+                payment=payment,
+                owner=split.owner,
+                amount=split.amount,
+                entry_type="landlord_payout",
+                description=f"Payout to {split.owner.user.email}",
+            )
+
+
+class AuditService:
+    @staticmethod
+    def log(actor, action, target, changes=None):
+        AuditLog.objects.create(
+            actor=actor,
+            action=action,
+            target_model=target._meta.model_name,
+            target_id=str(target.pk),
+            changes=changes or {},
+        )

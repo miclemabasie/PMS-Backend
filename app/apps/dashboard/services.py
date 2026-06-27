@@ -9,11 +9,11 @@ from apps.maintenance.repositories import MaintenanceRequestRepository
 from apps.payments.models import Payment, RentalAgreement
 from apps.maintenance.models import MaintenanceRequest
 
-# Optional notification import
-try:
-    from apps.notifications.models import Notification
-except ImportError:
-    Notification = None
+# # Optional notification import
+# try:
+#     from apps.notifications.models import Notification
+# except ImportError:
+#     Notification = None
 
 
 class LandlordDashboardService:
@@ -84,19 +84,19 @@ class LandlordDashboardService:
 
         # 6. Notifications (if notification app is installed)
         notifications = []
-        if Notification is not None and "apps.notifications" in settings.INSTALLED_APPS:
-            notif_qs = Notification.objects.filter(
-                user__owner_profile__pkid=owner_id, status="sent"
-            ).order_by("-created_at")[:5]
-            notifications = [
-                {
-                    "id": str(n.id),
-                    "title": n.subject,
-                    "message": n.body[:100],
-                    "created_at": n.created_at.isoformat(),
-                }
-                for n in notif_qs
-            ]
+        # if Notification is not None and "apps.notifications" in settings.INSTALLED_APPS:
+        #     notif_qs = Notification.objects.filter(
+        #         user__owner_profile__pkid=owner_id, status="sent"
+        #     ).order_by("-created_at")[:5]
+        #     notifications = [
+        #         {
+        #             "id": str(n.id),
+        #             "title": n.subject,
+        #             "message": n.body[:100],
+        #             "created_at": n.created_at.isoformat(),
+        #         }
+        #         for n in notif_qs
+        #     ]
 
         return {
             "total_properties": total_properties,

@@ -1,17 +1,16 @@
 import logging
 import uuid
-from decimal import Decimal
-from datetime import timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, Any, Optional, Tuple
 from django.db import transaction
 from datetime import datetime
 from django.utils import timezone
+from datetime import timedelta
 from django.conf import settings
-
 from apps.payments.models import Payment, RentalAgreement
-from apps.payments.dummy_payment_processor import DummyPaymentProcessor
 from apps.payments.utils.rent_calculator import RentCalculator
-from apps.properties.models import PaymentConfiguration
+from dateutil.relativedelta import relativedelta
+from apps.properties.models import PaymentOwnerSplit
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +43,16 @@ class PaymentManager:
         self.agreement = agreement
         self.plan = agreement.payment_plan
         self.unit = agreement.unit
-        self.config = self._get_payment_config()
+        self.property = self.unit.property
+        self.owner = self.property.get_payout_owner()  # primary owner
         self.is_staging = getattr(settings, "STAGING_MODE", False) or getattr(
             settings, "DEBUG", False
         )
+
+        if not self.owner:
+            logger.warning(
+                f"Property {self.property.id} has no owner; fee calculation will fallback to defaults."
+            )
 
     # --------------------------------------------------
     # Phase 1: Initiate payment (no agreement changes)
@@ -70,8 +75,11 @@ class PaymentManager:
 
         if not self.agreement.is_active:
             raise ValueError("Agreement is not active.")
+
+        # --------------------------------------------------
+        # 1. Validate amount and determine net_rent
+        # --------------------------------------------------
         if self.plan.mode == "monthly":
-            # Validate monthly payment
             monthly_rent = self.unit.monthly_rent
             if not monthly_rent:
                 raise ValueError("Monthly rent not set for this unit.")
@@ -102,8 +110,7 @@ class PaymentManager:
                 )
             self._pending_months = months
 
-        else:
-            # yearly mode
+        else:  # yearly mode
             status = self.agreement.installment_status
             installments = status.get("installments", [])
             if installment_index is None:
@@ -126,28 +133,27 @@ class PaymentManager:
             net_rent = due_amount
             self._pending_installment_index = installment_index
 
-        # Get config and calculate fees
-        config = self._get_payment_config()
-        if not config and not self.is_staging:
-            raise ValueError("Payment configuration missing for this property.")
-        if not config and self.is_staging:
-            config = PaymentConfiguration.objects.create(property=self.unit.property)
-
-        payout_method = self._get_landlord_payout_method()
-        calculator = RentCalculator(net_rent, config, payout_method)
+        # --------------------------------------------------
+        # 2. Calculate fees and expected total (using new RentCalculator)
+        # --------------------------------------------------
+        calculator = RentCalculator(net_rent, self.property, self.owner)
         fee_breakdown = calculator.get_breakdown()
         expected_total = fee_breakdown["tenant_total"]
 
+        # Validate amount (allow net_rent only if it matches expected? but we already validated above)
+        # We keep the fallback: if amount == net_rent, we still allow (avoids fee for some reason)
         if amount != expected_total:
-            # check if amount is netrent
             if amount == net_rent:
+                # Tenant is paying exactly net rent, skipping fees – allow (risky, but legacy behaviour)
                 pass
             else:
                 raise ValueError(
                     f"Amount mismatch after fee calculation. Expected {expected_total}, got {amount}."
                 )
 
-        # Execute gateway
+        # --------------------------------------------------
+        # 3. Execute gateway
+        # --------------------------------------------------
         gateway_result = self._execute_gateway(
             expected_total, payment_method, phone_number, provider
         )
@@ -156,20 +162,19 @@ class PaymentManager:
                 f"Gateway initiation failed: {gateway_result.get('error')}"
             )
 
-        # Convert to JSON‑serializable (no Decimal)
+        # --------------------------------------------------
+        # 4. Create payment record (pending)
+        # --------------------------------------------------
         raw_response = make_json_serializable(gateway_result.get("raw_response", {}))
         fee_breakdown_serializable = make_json_serializable(fee_breakdown)
-
-        # 🔥 FIX: Use today’s date as placeholder for period_start/end (non‑null constraint)
         today = timezone.now().date()
 
-        # Create pending payment
         payment = Payment.objects.create(
             agreement=self.agreement,
             amount=amount,
             months_covered=None,
-            period_start=today,  # placeholder, will be overwritten on completion
-            period_end=today,  # placeholder, will be overwritten on completion
+            period_start=today,  # placeholder
+            period_end=today,
             payment_method=payment_method,
             status="pending",
             transaction_id=gateway_result.get("transaction_id", str(uuid.uuid4())),
@@ -181,7 +186,7 @@ class PaymentManager:
             fee_breakdown=fee_breakdown_serializable,
         )
 
-        # Store months or installment index (optional)
+        # Store months or installment index
         if self.plan.mode == "monthly":
             payment.months_covered = months
             payment.save(update_fields=["months_covered"])
@@ -192,14 +197,8 @@ class PaymentManager:
         return payment
 
     def _get_tenant_total_for_net_rent(self, net_rent: Decimal) -> Decimal:
-        """Helper to compute tenant total including fees"""
-        config = self._get_payment_config()
-        payout_method = self._get_landlord_payout_method()
-        if not config and not self.is_staging:
-            return net_rent
-        if not config and self.is_staging:
-            config = PaymentConfiguration.objects.create(property=self.unit.property)
-        calculator = RentCalculator(net_rent, config, payout_method)
+        """Helper to compute tenant total (including fees) for a given net rent."""
+        calculator = RentCalculator(net_rent, self.property, self.owner)
         return calculator.get_tenant_total()
 
     # --------------------------------------------------
@@ -211,13 +210,8 @@ class PaymentManager:
         Step 2: Poll gateway using payment.gateway_reference (ptn).
         If success, update agreement coverage/installments and mark payment completed.
         Returns status dict.
-
-        Concurrency: re-fetches the Payment row with `select_for_update()` so that
-        concurrent calls (e.g. tenant poll + landlord poll, or future webhook +
-        poll) cannot both pass the `pending` guard and double-extend coverage /
-        double-count installments for a single gateway transaction.
         """
-        # Lock the payment row for the duration of this transaction.
+        # Lock the payment row for concurrency safety
         try:
             payment = (
                 Payment.objects.select_for_update()
@@ -230,35 +224,38 @@ class PaymentManager:
         if payment.status != "pending":
             return {"status": payment.status, "message": "Already processed"}
 
-        # Call gateway verification
+        # Verify with gateway
         verification = self._verify_gateway_payment(payment.gateway_reference)
         if not verification["success"]:
-            # Payment still pending or failed
             if verification.get("status") == "failed":
                 payment.status = "failed"
                 payment.save(update_fields=["status"])
                 return {"status": "failed", "message": verification.get("error")}
             return {"status": "pending", "message": "Waiting for user confirmation"}
 
-        # ----- SUCCESS: now update agreement and payment -----
-        # Re‑fetch net_rent and fee breakdown
-        net_rent = self._get_net_rent()
-        if net_rent is None:
-            raise ValueError("Cannot determine net rent for this payment.")
+        # --------------------------------------------------
+        # SUCCESS: update agreement and finalise payment
+        # --------------------------------------------------
+        # Use the stored fee breakdown (snapshot) to avoid re-pricing
+        stored_breakdown = payment.fee_breakdown
+        if not stored_breakdown:
+            # Fallback (should not happen)
+            net_rent = self._compute_net_rent(payment)
+            calculator = RentCalculator(net_rent, self.property, self.owner)
+            stored_breakdown = calculator.get_breakdown()
 
-        config = self._get_payment_config()
-        payout_method = self._get_landlord_payout_method()
-        calculator = RentCalculator(net_rent, config, payout_method)
-        fee_breakdown = calculator.get_breakdown()
-        landlord_net = fee_breakdown["landlord_net"]
+        # Determine net rent for updating agreement
+        net_rent = self._compute_net_rent(payment)
 
-        # If custom amount was used, recalculate landlord_net proportionally
+        # Compute final landlord net (proportional if custom amount)
+        landlord_net = Decimal(stored_breakdown.get("landlord_net", 0))
+        tenant_total_from_breakdown = Decimal(stored_breakdown.get("tenant_total", 0))
         if (
             self.plan.allow_custom_amount
-            and payment.amount != fee_breakdown["tenant_total"]
+            and payment.amount != tenant_total_from_breakdown
         ):
             landlord_net = self._recalculate_landlord_net(
-                payment.amount, fee_breakdown, net_rent
+                payment.amount, stored_breakdown, tenant_total_from_breakdown
             )
 
         # Update agreement coverage or installments
@@ -266,15 +263,28 @@ class PaymentManager:
             payment.amount, net_rent, payment
         )
 
-        # Update payment record with completed info
+        # Finalise payment record
         payment.status = "completed"
         payment.period_start = period_start
         payment.period_end = period_end
         payment.months_covered = months_covered
         payment.net_landlord_amount = landlord_net
-        # Store fee breakdown as JSON-serializable
-        payment.fee_breakdown = make_json_serializable(fee_breakdown)
+        # Keep the stored fee_breakdown (already JSON)
         payment.save()
+
+        property_obj = self.agreement.unit.property
+        ownership_records = property_obj.ownership_records.filter(percentage__gt=0)
+        total_percent = sum(r.percentage for r in ownership_records)
+        net_landlord_amount = payment.net_landlord_amount
+        for record in ownership_records:
+            share = (record.percentage / total_percent) * net_landlord_amount
+            share = share.quantize(Decimal("1."), rounding=ROUND_HALF_UP)
+            PaymentOwnerSplit.objects.create(
+                payment=payment,
+                owner=record.owner,
+                amount=share,
+                percentage=record.percentage,
+            )
 
         logger.info(
             f"Payment {payment.id} completed and agreement {self.agreement.id} updated"
@@ -285,18 +295,22 @@ class PaymentManager:
     # Internal helpers
     # --------------------------------------------------
 
-    def _get_payment_config(self) -> Optional[PaymentConfiguration]:
-        return getattr(self.unit.property, "payment_config", None)
-
-    def _get_net_rent(self) -> Optional[Decimal]:
+    def _compute_net_rent(self, payment: Payment) -> Decimal:
+        """Compute the net rent (before fees) based on payment details and agreement."""
         if self.plan.mode == "monthly":
-            return self.unit.monthly_rent
+            # Use months_covered from payment (set during initiation)
+            months = payment.months_covered
+            if months is None:
+                # Fallback: derive from amount (rough)
+                months = round(payment.amount / self.unit.monthly_rent)
+            return self.unit.monthly_rent * Decimal(months)
         else:
+            # Yearly: net rent is the remaining amount of the current installment
             status = self.agreement.installment_status
             next_idx = status.get("next_installment_index")
             if next_idx is not None:
                 return Decimal(status["installments"][next_idx]["remaining"])
-            return None
+            return Decimal(0)
 
     def _get_landlord_payout_method(self) -> str:
         owner = self.unit.property.get_payout_owner()
@@ -305,13 +319,14 @@ class PaymentManager:
         return "bank_transfer"
 
     def _recalculate_landlord_net(
-        self, amount: Decimal, breakdown: Dict, net_rent: Decimal
+        self, amount: Decimal, breakdown: Dict, original_tenant_total: Decimal
     ) -> Decimal:
-        original_total = breakdown["tenant_total"]
-        original_landlord_net = breakdown["landlord_net"]
-        if original_total == 0:
+        original_landlord_net = Decimal(breakdown.get("landlord_net", 0))
+        if original_tenant_total == 0:
             return amount
-        return (amount * original_landlord_net / original_total).quantize(Decimal("1."))
+        return (amount * original_landlord_net / original_tenant_total).quantize(
+            Decimal("1.")
+        )
 
     def _execute_gateway(
         self, amount: Decimal, method: str, phone: str, provider: str
@@ -329,7 +344,7 @@ class PaymentManager:
                 return {"success": False, "error": "Payment gateway not configured"}
 
             gateway = gateway_factory.create_gateway("smobilpay", gateway_config)
-
+            print("@@@@@@@@@@@@@@@@@ payment phone", phone)
             intent = gateway.create_payment_intent(
                 amount=amount,
                 currency="XAF",
@@ -371,7 +386,9 @@ class PaymentManager:
             gateway = gateway_factory.create_gateway("smobilpay", gateway_config)
 
             status_response = gateway.verify_payment(gateway_reference=ptn)
-            logger.debug("Gateway verify_payment response for ptn=%s: %s", ptn, status_response)
+            logger.debug(
+                "Gateway verify_payment response for ptn=%s: %s", ptn, status_response
+            )
 
             status_response = make_json_serializable(status_response)
 
@@ -402,6 +419,11 @@ class PaymentManager:
     def _update_monthly_coverage(
         self, amount: Decimal, net_rent: Decimal, months_override: Decimal = None
     ) -> Tuple[datetime.date, datetime.date, Decimal]:
+        """
+        Extend coverage by a given number of calendar months.
+        Uses relativedelta to handle month‑end and leap years correctly.
+        """
+        # Determine number of months (must be integer)
         if months_override is not None:
             months = int(months_override)
         else:
@@ -413,6 +435,7 @@ class PaymentManager:
                 )
             months = int(months_raw)
 
+        # Validate against allowed terms
         allowed_terms = (
             self.plan.allowed_monthly_terms
             if self.plan.allowed_monthly_terms
@@ -423,17 +446,23 @@ class PaymentManager:
                 f"Payment of {months} month(s) not allowed. Allowed: {allowed_terms}"
             )
 
-        days_covered = months * 30
+        # Determine start date for the new coverage period
+        today = timezone.now().date()
         current_coverage = self.agreement.coverage_end_date
-        if current_coverage and current_coverage >= timezone.now().date():
-            period_start = current_coverage
-            new_end = current_coverage + timedelta(days=days_covered)
-        else:
-            period_start = timezone.now().date()
-            new_end = period_start + timedelta(days=days_covered)
 
+        if current_coverage and current_coverage >= today:
+            # Coverage is still active → extend from current end date
+            period_start = current_coverage
+            new_end = current_coverage + relativedelta(months=months)
+        else:
+            # Coverage expired or never set → start from today
+            period_start = today
+            new_end = today + relativedelta(months=months)
+
+        # Update agreement
         repo = self._get_repository()
         repo.update_coverage_end_date(self.agreement.id, new_end)
+
         return period_start, new_end, Decimal(months)
 
     def _update_yearly_installments(
@@ -497,3 +526,92 @@ class PaymentManager:
         from apps.payments.repositories import RentalAgreementRepository
 
         return RentalAgreementRepository()
+
+    @transaction.atomic
+    def complete_from_webhook(
+        self, payment: Payment, event: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Complete a payment based on a webhook event (no gateway polling).
+        """
+        # Lock payment
+        payment = (
+            Payment.objects.select_for_update()
+            .select_related("agreement")
+            .get(pk=payment.pk)
+        )
+        if payment.status != "pending":
+            return {"status": payment.status, "message": "Already processed"}
+
+        # Reconcile amount
+        gateway_amount = event.get("amount")
+        if gateway_amount and gateway_amount != payment.amount:
+            # Reject if amount mismatch (security)
+            payment.status = "failed"
+            payment.notes += f"\nWebhook amount mismatch: expected {payment.amount}, got {gateway_amount}"
+            payment.save(update_fields=["status", "notes"])
+            return {"status": "failed", "message": "Amount mismatch"}
+
+        # Use the existing verification success logic (copy from verify_and_complete after gateway success)
+        # Since we already have the event, we can skip the gateway call and directly finalise.
+        # We'll reuse the internal _finalize_payment method.
+        return self._finalize_payment(payment, event)
+
+    def _finalize_payment(self, payment: Payment, event: Dict) -> Dict:
+        """Common finalisation logic used by verify_and_complete and complete_from_webhook."""
+        # Use stored breakdown snapshot
+        stored_breakdown = payment.fee_breakdown
+        if not stored_breakdown:
+            net_rent = self._compute_net_rent(payment)
+            calculator = RentCalculator(net_rent, self.property, self.owner)
+            stored_breakdown = calculator.get_breakdown()
+
+        net_rent = self._compute_net_rent(payment)
+        landlord_net = Decimal(stored_breakdown.get("landlord_net", 0))
+        tenant_total_from_breakdown = Decimal(stored_breakdown.get("tenant_total", 0))
+        if (
+            self.plan.allow_custom_amount
+            and payment.amount != tenant_total_from_breakdown
+        ):
+            landlord_net = self._recalculate_landlord_net(
+                payment.amount, stored_breakdown, tenant_total_from_breakdown
+            )
+
+        period_start, period_end, months_covered = self._update_agreement(
+            payment.amount, net_rent, payment
+        )
+
+        payment.status = "completed"
+        payment.period_start = period_start
+        payment.period_end = period_end
+        payment.months_covered = months_covered
+        payment.net_landlord_amount = landlord_net
+        payment.gateway_response = event.get("raw", {})  # store raw event
+        payment.save()
+
+        # Create owner splits
+        property_obj = self.agreement.unit.property
+        ownership_records = property_obj.ownership_records.filter(percentage__gt=0)
+        total_percent = sum(r.percentage for r in ownership_records)
+        net_landlord_amount = payment.net_landlord_amount
+        for record in ownership_records:
+            share = (record.percentage / total_percent) * net_landlord_amount
+            share = share.quantize(Decimal("1."), rounding=ROUND_HALF_UP)
+            PaymentOwnerSplit.objects.create(
+                payment=payment,
+                owner=record.owner,
+                amount=share,
+                percentage=record.percentage,
+            )
+
+        # Ledger entries
+        from apps.payments.services import LedgerService
+
+        LedgerService().record_payment_ledger(payment)
+
+        logger.info(f"Payment {payment.id} completed via webhook")
+
+        from apps.payments.services import LedgerService
+
+        LedgerService().record_payment_ledger(payment)
+        return {"status": "completed", "payment_id": str(payment.id)}

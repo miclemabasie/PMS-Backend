@@ -191,11 +191,12 @@ class MakePaymentView(APIView):
         self.service = RentalAgreementService()
 
     def post(self, request, agreement_id):
+        idempotency_key = request.headers.get("Idempotency-Key")
         serializer = MakePaymentSerializer(data=request.data)
         agreement = self.service.get_agreement_for_user(agreement_id, request.user)
         if serializer.is_valid():
             try:
-                payment = self.service.make_payment(
+                result = self.service.make_payment_with_idempotency(
                     agreement=agreement,
                     amount=serializer.validated_data["amount"],
                     payment_method=serializer.validated_data["payment_method"],
@@ -205,10 +206,9 @@ class MakePaymentView(APIView):
                     installment_index=serializer.validated_data.get(
                         "installment_index"
                     ),
+                    idempotency_key=idempotency_key,
                 )
-                return Response(
-                    PaymentSerializer(payment).data, status=status.HTTP_201_CREATED
-                )
+                return Response(result, status=status.HTTP_201_CREATED)
             except Exception as e:
                 logger.exception("make_payment failed for agreement %s", agreement_id)
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -382,6 +382,37 @@ class RecordManualPaymentView(APIView):
                 notes=serializer.validated_data.get("notes", ""),
                 recorded_by_user=request.user,
             )
+
+            from apps.payments.services import AuditService
+
+            AuditService.log(
+                actor=request.user,
+                action="manual_payment",
+                target=payment,
+                changes={"amount": payment.amount, "method": payment.payment_method},
+            )
             return Response(PaymentSerializer(payment).data, status=201)
         except ValueError as e:
             return Response({"error": str(e)}, status=400)
+
+
+class PaymentWebhookView(APIView):
+    permission_classes = []
+    authentication_classes = []
+
+    def post(self, request, gateway_name):
+        service = PaymentService()
+        try:
+            # Pass both raw body (for signature) and parsed data
+            result = service.process_webhook(
+                gateway_name,
+                request.data,  # parsed dict
+                request.headers,
+                request.body,  # raw bytes
+            )
+            return Response(result, status=200)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=400)
+        except Exception:
+            logger.exception("Webhook error")
+            return Response({"error": "Internal error"}, status=500)
