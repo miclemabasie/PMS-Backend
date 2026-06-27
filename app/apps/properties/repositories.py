@@ -3,6 +3,8 @@ from apps.core.base_repository import DjangoRepository
 from datetime import timedelta
 from django.utils import timezone
 
+from apps.properties.models import TermTemplate
+
 # apps/properties/repositories.py
 # apps/properties/repositories.py
 from django.utils import timezone
@@ -184,3 +186,18 @@ class UnitRepository(DjangoRepository[Unit]):
 
         # All other roles get no access
         return qs.none()
+
+
+class TermTemplateRepository(DjangoRepository[TermTemplate]):
+    def __init__(self):
+        super().__init__(TermTemplate)
+
+    def get_active_for_property(self, property_id):
+        return list(
+            self.model_class.objects.filter(property_id=property_id, is_active=True)
+        )
+
+    def get_default_for_property(self, property_id):
+        return self.model_class.objects.filter(
+            property_id=property_id, is_active=True
+        ).first()

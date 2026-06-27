@@ -1,6 +1,7 @@
 from typing import List, Optional
 from django.db import transaction
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
 import logging
 from .models import (
     Property,
@@ -10,6 +11,7 @@ from .models import (
     Unit,
     PropertyImage,
     UnitImage,
+    TermTemplate,
 )
 from .repositories import (
     PropertyRepository,
@@ -17,6 +19,7 @@ from .repositories import (
     ManagerRepository,
     PropertyOwnershipRepository,
     UnitRepository,
+    TermTemplateRepository,
 )
 from apps.core.base_service import BaseService
 from datetime import timedelta
@@ -483,3 +486,31 @@ class UnitService(BaseService[Unit]):
 class PropertyOwnershipService(BaseService[PropertyOwnership]):
     def __init__(self):
         super().__init__(PropertyOwnershipRepository())
+
+
+class TermTemplateService(BaseService[TermTemplate]):
+    def __init__(self):
+        super().__init__(TermTemplateRepository())
+
+    def get_templates_for_property(self, property_id):
+        return self.repository.get_active_for_property(property_id)
+
+    def get_default_template(self, property_id):
+        return self.repository.get_default_for_property(property_id)
+
+    def create_template(self, property_id, name, content):
+        property_obj = get_object_or_404(Property, id=property_id)
+        return self.repository.create(property=property_obj, name=name, content=content)
+
+    def update_template(self, template_id, **data):
+        template = self.get_by_id(template_id)
+        if not template:
+            raise ValueError("Template not found")
+        return self.repository.update(template, **data)
+
+    def delete_template(self, template_id):
+        template = self.get_by_id(template_id)
+        if not template:
+            return False
+        self.repository.delete(template)
+        return True
