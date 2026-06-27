@@ -8,6 +8,7 @@ from .models import (
     PropertyOwnership,
     Manager,
     Unit,
+    TermTemplate,
 )
 from apps.users.api.serializers import UserMinimalSerializer
 from apps.users.models import User
@@ -371,3 +372,21 @@ class PropertyManagerRemoveSerializer(serializers.Serializer):
     manager_id = serializers.UUIDField(
         required=True, help_text="UUID of the manager to remove"
     )
+
+
+class TermTemplateSerializer(serializers.ModelSerializer):
+    property_id = serializers.UUIDField(write_only=True)
+
+    class Meta:
+        model = TermTemplate
+        fields = [
+            "id",
+            "property",
+            "property_id",
+            "name",
+            "content",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
