@@ -213,8 +213,6 @@ class Property(TimeStampedUUIDModel):
             ownership = self.ownership_records.first()
         return ownership.owner if ownership else None
 
-    
-
 
 class PropertyImage(models.Model):
     property = models.ForeignKey(
@@ -694,3 +692,28 @@ class PropertyPaymentConfig(TimeStampedUUIDModel):
             config["pricing_model"] = "per_transaction"
 
         return config
+
+
+class TermTemplate(TimeStampedUUIDModel):
+    """
+    Landlord-defined terms template for a property.
+    Can be reused across multiple agreements.
+    """
+
+    property = models.ForeignKey(
+        Property,
+        on_delete=models.CASCADE,
+        related_name="term_templates",
+        verbose_name=_("Property"),
+    )
+    name = models.CharField(_("Template name"), max_length=255)
+    content = models.TextField(_("Terms and conditions content"))
+    is_active = models.BooleanField(_("Active"), default=True)
+
+    class Meta:
+        verbose_name = _("Term Template")
+        verbose_name_plural = _("Term Templates")
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.property.name})"
