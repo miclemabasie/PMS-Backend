@@ -165,6 +165,43 @@ class RentalAgreementCreateView(APIView):
         return Response(serializer.data)
 
 
+# apps/payments/views.py (add this class)
+
+class RentalAgreementUpdateTermsView(APIView):
+    permission_classes = [IsAuthenticated, CanManageRentalAgreement]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = RentalAgreementService()
+
+    def patch(self, request, agreement_id):
+        try:
+            agreement = self.service.get_agreement_for_user(agreement_id, request.user)
+        except ValueError:
+            return Response({"error": "Agreement not found"}, status=404)
+        except PermissionDenied as e:
+            return Response({"error": str(e)}, status=403)
+
+        terms_text = request.data.get("terms_text")
+        if terms_text is None:
+            return Response({"error": "terms_text is required"}, status=400)
+
+        # Update only the terms field
+        agreement.terms_text = terms_text
+        agreement.save(update_fields=["terms_text", "updated_at"])
+
+        # Optionally log the update
+        from apps.payments.services import AuditService
+        AuditService.log(
+            actor=request.user,
+            action="update_terms",
+            target=agreement,
+            changes={"terms_text": terms_text[:100] + "..." if len(terms_text) > 100 else terms_text},
+        )
+
+        serializer = RentalAgreementSerializer(agreement)
+        return Response(serializer.data, status=200)
+
 class RentalAgreementListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -451,10 +488,24 @@ class PaymentWebhookView(APIView):
 
 
 class AgreementAcceptView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = []  # No auth required for GET
+
+    def get(self, request, token):
+        """Public GET: fetch agreement details by token."""
+        service = RentalAgreementService()
+        try:
+            agreement = service.repository.get_by_acceptance_token(token)
+            if not agreement:
+                return Response({"error": "Agreement not found"}, status=404)
+            if agreement.is_active:
+                return Response({"error": "Agreement already accepted"}, status=400)
+            serializer = RentalAgreementSerializer(agreement)
+            return Response(serializer.data, status=200)
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
 
     def post(self, request, token):
-        
+        """POST: accept agreement (requires authentication)."""
         service = RentalAgreementService()
         try:
             agreement, acceptance = service.accept_agreement(

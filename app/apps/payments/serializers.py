@@ -29,7 +29,7 @@ class RentalAgreementSerializer(serializers.ModelSerializer):
     )
 
     terms_template_id = serializers.UUIDField(required=False, allow_null=True, write_only=True)
-    terms_text = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    terms_text = serializers.CharField(required=False, allow_blank=True)
     acceptance_token = serializers.UUIDField(read_only=True)
     terms_accepted_at = serializers.DateTimeField(read_only=True)
     terms_accepted_by = serializers.StringRelatedField(read_only=True)

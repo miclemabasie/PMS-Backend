@@ -209,6 +209,7 @@ class UnitSerializer(serializers.ModelSerializer):
             "id": obj.property.id,
             "name": obj.property.name,
             "property_type": obj.property.property_type,
+            "pkid": obj.property.pkid,
         }
 
 
