@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Recorded</title>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 0;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f6f8; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+          <!-- Header -->
+          <tr>
+            <td style="background: #1a2a3a; padding: 20px 30px; text-align: center;">
+              <span style="color: #ffffff; font-size: 22px; font-weight: bold;">Blizton</span>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style="padding: 30px 35px;">
+              <h1 style="font-size: 22px; color: #1a2a3a; margin-top: 0;">Payment Recorded</h1>
+              <p style="line-height: 1.6; color: #555555;">
+                Dear <strong>{{ tenant_name }}</strong>,
+              </p>
+              <p style="line-height: 1.6; color: #555555;">
+                A payment of <strong>{{ amount }} XAF</strong> has been recorded for your rental agreement at
+                <strong>{{ property_name }}</strong> (Unit {{ unit_number }}).
+              </p>
+              <p style="line-height: 1.6; color: #555555;">
+                <strong>Period covered:</strong> {{ period_start }} – {{ period_end }}
+                {% if months_covered %}({{ months_covered }} month(s)){% endif %}
+              </p>
+              <p style="line-height: 1.6; color: #555555;">
+                <strong>Payment Method:</strong> {{ payment_method }}
+                <br>
+                <strong>Date Recorded:</strong> {{ payment_date }}
+              </p>
+              <div style="text-align: center; margin: 25px 0;">
+                <a href="{{ receipt_url }}" style="display: inline-block; background: #1a73e8; color: #ffffff !important; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; font-size: 16px;">View Receipt</a>
+              </div>
+              <p style="font-size: 14px; color: #777777;">
+                If you have any questions, please contact your landlord directly.
+              </p>
+              <div style="background: #f0f2f5; padding: 12px 18px; border-radius: 6px; margin-top: 20px; font-size: 14px;">
+                💡 Need help? Contact us at <a href="mailto:support@blizton.com" style="color: #1a73e8;">support@blizton.com</a>
+              </div>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background: #f8f9fa; padding: 15px 35px; text-align: center; font-size: 12px; color: #888888; border-top: 1px solid #e9ecef;">
+              &copy; 2026 <a href="https://blizton.com" style="color: #1a73e8; text-decoration: none;">Blizton Property Management</a> – All rights reserved.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

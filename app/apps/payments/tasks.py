@@ -5,6 +5,7 @@ from apps.payments.models import Payment
 from apps.payments.models import Receipt
 from apps.notifications.tasks import send_notification
 from django.conf import settings
+from apps.payments.utils.receipts import format_currency
 import logging
 
 logger = logging.getLogger(__name__)
@@ -111,3 +112,64 @@ def send_receipt_email(self, payment_id: str, recipient_email: str, tenant_name:
         logger.exception(f"Failed to send receipt email for payment {payment_id}")
         if self.request.retries < self.max_retries:
             raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def send_payment_recorded_email(self, payment_id: str):
+    """
+    Send email to tenant when a manual payment is recorded.
+    """
+    try:
+        payment = Payment.objects.select_related(
+            "agreement__tenant__user",
+            "agreement__unit__property"
+        ).get(id=payment_id)
+    except Payment.DoesNotExist:
+        logger.error(f"Payment {payment_id} not found for payment recorded email.")
+        return
+
+    tenant = payment.agreement.tenant
+    tenant_email = tenant.user.email
+    tenant_name = tenant.user.get_full_name()
+
+    property_obj = payment.agreement.unit.property
+    unit = payment.agreement.unit
+    receipt_url = f"{settings.FRONTEND_URL}/receipts/{payment_id}/"
+
+    # Format period
+    period_start = payment.period_start
+    period_end = payment.period_end
+    months_covered = payment.months_covered
+
+    if period_start and period_end:
+        start_str = period_start.strftime("%d %b %Y")
+        end_str = period_end.strftime("%d %b %Y")
+        if period_start.day == 1 and period_end.day == period_end.replace(day=1, month=period_end.month+1, year=period_end.year).day - 1:
+            period_display = period_start.strftime("%B %Y")
+        else:
+            period_display = f"{start_str} – {end_str}"
+    else:
+        period_display = "N/A"
+
+    payment_method_display = dict(Payment._meta.get_field('payment_method').choices).get(payment.payment_method, payment.payment_method)
+
+    send_notification.delay(
+        channel="email",
+        recipient=tenant_email,
+        subject=f"Payment Recorded – {payment.receipt_number or payment.id[:8]}",
+        template_name="emails/payments/payment_recorded.html",
+        context={
+            "tenant_name": tenant_name,
+            "amount": format_currency(payment.amount),
+            "property_name": property_obj.name,
+            "unit_number": unit.unit_number,
+            "period_start": start_str if period_start else "N/A",
+            "period_end": end_str if period_end else "N/A",
+            "months_covered": months_covered,
+            "payment_method": payment_method_display,
+            "payment_date": payment.payment_date.strftime("%d %b %Y"),
+            "receipt_url": receipt_url,
+        }
+    )
+    logger.info(f"Payment recorded email sent to {tenant_email} for payment {payment_id}")

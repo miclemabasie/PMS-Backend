@@ -326,64 +326,6 @@ class RentalAgreementService(BaseService[RentalAgreement]):
             raise ValueError("No acceptance record found (agreement accepted but record missing)")
         return acceptance
 
-
-    # def create_agreement(self, unit, tenant, payment_plan) -> RentalAgreement:
-    #     if (
-    #         payment_plan.mode == "monthly" and unit.rent_duration_type != "monthly"
-    #     ) or (payment_plan.mode == "yearly" and unit.rent_duration_type != "yearly"):
-    #         logger.warning(
-    #             f"PaymentPlan mode '{payment_plan.mode}' does not match Unit rent_duration_type '{unit.rent_duration_type}'. "
-    #             "Proceeding anyway, but amounts may be unexpected."
-    #         )
-    #         raise ValueError("PaymentPlan mode does not match Unit rent_duration_type.")
-    #     if payment_plan.mode == "monthly":
-    #         agreement = self.repository.create(
-    #             unit=unit,
-    #             tenant=tenant,
-    #             payment_plan=payment_plan,
-    #             start_date=timezone.now().date(),
-    #             coverage_end_date=timezone.now().date(),
-    #             is_active=True,
-    #         )
-    #     else:  # yearly
-    #         installments = (
-    #             self.payment_plan_repo.get_with_installments(payment_plan.id)
-    #             .installments.all()
-    #             .order_by("order_index")
-    #         )
-    #         installments_list = []
-    #         for inst in installments:
-    #             amount = (unit.yearly_rent * inst.percent / 100).quantize(Decimal("1"))
-    #             installments_list.append(
-    #                 {
-    #                     "percent": float(inst.percent),
-    #                     "amount": str(amount),
-    #                     "paid_amount": "0",
-    #                     "remaining": str(amount),
-    #                     "status": "pending",
-    #                     "due_date": (
-    #                         inst.due_date.isoformat() if inst.due_date else None
-    #                     ),
-    #                 }
-    #             )
-    #         status_data = {
-    #             "installments": installments_list,
-    #             "total_paid": "0",
-    #             "total_remaining": str(unit.yearly_rent),
-    #             "next_installment_index": 0,
-    #         }
-    #         agreement = self.repository.create(
-    #             unit=unit,
-    #             tenant=tenant,
-    #             payment_plan=payment_plan,
-    #             start_date=timezone.now().date(),
-    #             installment_status=status_data,
-    #             is_active=True,
-    #         )
-    #     unit.status = "occupied"
-    #     unit.save()
-    #     return agreement
-
     def get_available_payment_options(self, agreement: RentalAgreement) -> list:
         plan = agreement.payment_plan
         property_obj = agreement.unit.property
@@ -630,17 +572,21 @@ class RentalAgreementService(BaseService[RentalAgreement]):
     ):
         """
         Record a manual payment for an agreement.
+        If the owner is subscribed, no fees are applied – amount is the net rent.
         """
         agreement = self.get_agreement_for_user(agreement_id, recorded_by_user)
         if not agreement.is_active:
             raise ValueError("Cannot record payment for inactive agreement")
+
         from apps.properties.services import OwnerService
         owner_service = OwnerService()
+
         try:
             owner = recorded_by_user.owner_profile
         except AttributeError:
             raise PermissionError("User is not an owner.")
 
+        # 1. Check subscription and PIN
         if not owner_service.has_active_subscription(owner):
             raise PermissionError("Manual payments are only allowed for subscribed landlords.")
 
@@ -648,38 +594,43 @@ class RentalAgreementService(BaseService[RentalAgreement]):
             raise PermissionError("Invalid payment PIN.")
 
         property_obj = agreement.unit.property
-        owner = property_obj.get_payout_owner()
-        if not owner:
-            raise ValueError("Property has no primary owner; cannot calculate fees.")
+        # Owner is already the primary payout owner, but we can also get from property
+        # We'll use the owner from the user's profile.
 
-        # Determine net rent based on plan mode
+        # 2. Determine net rent (the rent amount without fees)
         if agreement.payment_plan.mode == "monthly":
             net_rent = agreement.unit.monthly_rent
+            # Validate that the amount is a multiple of monthly rent
+            if amount % net_rent != 0:
+                raise ValueError(
+                    f"Amount must be a multiple of monthly rent ({net_rent} XAF)."
+                )
         else:
+            # Yearly mode: we need to get the remaining installment amount
             status = agreement.installment_status
             next_idx = status.get("next_installment_index")
             if next_idx is None:
                 raise ValueError("Agreement is already fully paid")
             net_rent = Decimal(status["installments"][next_idx]["remaining"])
-
-        calculator = RentCalculator(net_rent, property_obj, owner)
-        fee_breakdown = calculator.get_breakdown()
-        expected_total = fee_breakdown["tenant_total"]
-
-        # Validate amount
-        if amount != expected_total:
-            if not agreement.payment_plan.allow_custom_amount:
+            if amount != net_rent:
                 raise ValueError(
-                    f"Amount must be exactly {expected_total} XAF for this plan."
+                    f"Amount must equal the remaining installment amount ({net_rent} XAF)."
                 )
-            # Recalculate landlord net proportionally
-            landlord_net = (
-                amount * fee_breakdown["landlord_net"] / expected_total
-            ).quantize(Decimal("1."))
-        else:
-            landlord_net = fee_breakdown["landlord_net"]
 
+        # 3. For subscribed owners, no fees are charged – the amount is the net rent
+        # The fee breakdown is zero
+        fee_breakdown = {
+            "platform_fee": 0,
+            "gateway_fee": 0,
+            "fixed_extra": 0,
+            "landlord_net": amount,
+            "tenant_total": amount,
+        }
+
+        # 4. Create payment record
         payment_repo = PaymentRepository()
+        reference = f"MANUAL-{uuid.uuid4().hex[:12]}"
+
         payment = payment_repo.create(
             agreement=agreement,
             amount=amount,
@@ -688,24 +639,28 @@ class RentalAgreementService(BaseService[RentalAgreement]):
             payment_date=payment_date or timezone.now().date(),
             period_start=timezone.now().date(),
             period_end=timezone.now().date(),
-            net_landlord_amount=landlord_net,
+            net_landlord_amount=amount,
             fee_breakdown=make_json_serializable(fee_breakdown),
             notes=notes,
+            gateway_reference=reference,       # ✅ unique non‑null value
+            transaction_id=reference,          # use same or keep separate
         )
 
-        # Use PaymentManager to update agreement coverage/installments
+        # 5. Update agreement coverage / installments using PaymentManager
         manager = PaymentManager(agreement)
+        # We need to use the net rent (which equals amount) to update coverage
         period_start, period_end, months_covered = manager._update_agreement(
-            amount, net_rent, payment
+            amount, amount, payment
         )
         payment.period_start = period_start
         payment.period_end = period_end
         payment.months_covered = months_covered
         payment.save(update_fields=["period_start", "period_end", "months_covered"])
 
+        from apps.payments.tasks import send_payment_recorded_email
+        send_payment_recorded_email.delay(str(payment.id))
+
         return payment
-
-
 # apps/payments/services.py (excerpt)
 
 from apps.subscriptions.repositories import (

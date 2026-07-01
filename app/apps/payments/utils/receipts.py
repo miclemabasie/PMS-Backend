@@ -15,3 +15,6 @@ def generate_receipt_number():
         else:
             num = 1
         return f"RCP-{datetime.date.today().year}-{num:04d}"
+
+def format_currency(amount):
+    return f"{amount:,.0f} XAF"
