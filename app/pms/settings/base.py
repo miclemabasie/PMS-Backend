@@ -62,6 +62,7 @@ LOCAL_APPS = [
     "apps.reports.apps.ReportsConfig",
     "apps.dashboard.apps.DashboardConfig",
     "apps.subscriptions.apps.SubscriptionsConfig",
+    "apps.notifications.apps.NotificationsConfig",
 ]
 
 THIRD_PARTY_APPS = [
@@ -480,3 +481,7 @@ logging.config.dictConfig(
         },
     }
 )
+
+
+
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5734")

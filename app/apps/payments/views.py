@@ -19,6 +19,8 @@ from .serializers import (
     PaymentSerializer,
     MakePaymentSerializer,
     ManualPaymentSerializer,
+    AgreementAcceptanceSerializer,
+    RentalAgreementCreateSerializer
 )
 from .permissions import (
     IsLandlordOrManagerOrSuperAdminForUnit,
@@ -104,28 +106,57 @@ class RentalAgreementCreateView(APIView):
         self.plan_service = PaymentPlanService()
         self.unit_service = UnitService()
 
+    # def post(self, request):
+    #     unit_id = request.data.get("unit_id")
+    #     tenant_id = request.data.get("tenant_id")
+    #     plan_id = request.data.get("payment_plan_id")
+
+    #     if not self.unit_service.user_can_manage_unit(request.user, unit_id):
+    #         return Response(
+    #             {
+    #                 "error": "You do not have permission to create an agreement for this unit."
+    #             },
+    #             status=403,
+    #         )
+
+    #     unit = self.unit_service.get_by_id(unit_id)
+    #     tenant = get_object_or_404(Tenant, id=tenant_id)
+    #     plan = self.plan_service.get_by_id(plan_id)
+    #     if not plan:
+    #         return Response({"error": "Payment plan not found"}, status=404)
+
+    #     agreement = self.service.create_agreement(unit, tenant, plan)
+    #     serializer = RentalAgreementSerializer(agreement)
+    #     return Response(serializer.data, status=201)
+
     def post(self, request):
-        unit_id = request.data.get("unit_id")
-        tenant_id = request.data.get("tenant_id")
-        plan_id = request.data.get("payment_plan_id")
+        serializer = RentalAgreementCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            # Fetch objects
+            unit = self.unit_service.get_by_id(serializer.validated_data['unit_id'])
+            if not unit:
+                return Response({"error": "Unit not found"}, status=404)
 
-        if not self.unit_service.user_can_manage_unit(request.user, unit_id):
-            return Response(
-                {
-                    "error": "You do not have permission to create an agreement for this unit."
-                },
-                status=403,
-            )
+            tenant = get_object_or_404(Tenant, id=serializer.validated_data['tenant_id'])
 
-        unit = self.unit_service.get_by_id(unit_id)
-        tenant = get_object_or_404(Tenant, id=tenant_id)
-        plan = self.plan_service.get_by_id(plan_id)
-        if not plan:
-            return Response({"error": "Payment plan not found"}, status=404)
+            plan = self.plan_service.get_by_id(serializer.validated_data['payment_plan_id'])
+            if not plan:
+                return Response({"error": "Payment plan not found"}, status=404)
 
-        agreement = self.service.create_agreement(unit, tenant, plan)
-        serializer = RentalAgreementSerializer(agreement)
-        return Response(serializer.data, status=201)
+            service = RentalAgreementService()
+            try:
+                agreement = service.create_agreement(
+                    unit=unit,
+                    tenant=tenant,
+                    payment_plan=plan,
+                    terms_template_id=serializer.validated_data.get('terms_template_id'),
+                    custom_terms=serializer.validated_data.get('terms_text'),
+                )
+                output = RentalAgreementSerializer(agreement)
+                return Response(output.data, status=201)
+            except ValueError as e:
+                return Response({"error": str(e)}, status=400)
+        return Response(serializer.errors, status=400)
 
     def get(self, request):
         """Get all tenants aggreement"""
@@ -416,3 +447,57 @@ class PaymentWebhookView(APIView):
         except Exception:
             logger.exception("Webhook error")
             return Response({"error": "Internal error"}, status=500)
+
+
+
+class AgreementAcceptView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, token):
+        
+        service = RentalAgreementService()
+        try:
+            agreement, acceptance = service.accept_agreement(
+                token=token,
+                user=request.user,
+                ip_address=self.get_client_ip(request),
+                user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            )
+            serializer = AgreementAcceptanceSerializer(acceptance)
+            return Response(serializer.data, status=200)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=400)
+        except PermissionError as e:
+            return Response({"error": str(e)}, status=403)
+
+    def get_client_ip(self, request):
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(",")[0]
+        else:
+            ip = request.META.get("REMOTE_ADDR")
+        return ip
+
+
+class AgreementAcceptanceDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, agreement_id):
+        service = RentalAgreementService()
+        try:
+            acceptance = service.get_acceptance_data(agreement_id)
+            # Permission check
+            agreement = acceptance.agreement
+            user = request.user
+            print("### we are here")
+            if not (user.is_superuser or
+                    (hasattr(user, "owner_profile") and agreement.unit.property.ownership_records.filter(owner=user.owner_profile).exists()) or
+                    (hasattr(user, "tenant_profile") and user.tenant_profile == agreement.tenant)):
+                print("### we are here 2")
+
+                return Response({"detail": "Permission denied"}, status=403)
+            serializer = AgreementAcceptanceSerializer(acceptance)
+            return Response(serializer.data)
+        except ValueError as e:
+            print("### we are here 3", e)
+            return Response({"error": str(e)}, status=404)

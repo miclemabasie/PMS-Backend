@@ -25,6 +25,9 @@ from .models import (
     AuditLog,
 )
 
+from apps.properties.services import TermTemplateService
+from apps.notifications.tasks import send_notification
+
 # New subscription models (from the new app)
 from apps.subscriptions.models import SubscriptionPlan
 from typing import Optional, List, Dict, Any
@@ -127,6 +130,7 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         super().__init__(RentalAgreementRepository())
         self.payment_repo = PaymentRepository()
         self.payment_plan_repo = PaymentPlanRepository()
+        self.template_service = TermTemplateService()
 
     @staticmethod
     def _sanitize_phone_and_method(phone: str, method: str) -> str:
@@ -177,45 +181,50 @@ class RentalAgreementService(BaseService[RentalAgreement]):
 
         return digits
 
-    def create_agreement(self, unit, tenant, payment_plan) -> RentalAgreement:
-        if (
-            payment_plan.mode == "monthly" and unit.rent_duration_type != "monthly"
-        ) or (payment_plan.mode == "yearly" and unit.rent_duration_type != "yearly"):
-            logger.warning(
-                f"PaymentPlan mode '{payment_plan.mode}' does not match Unit rent_duration_type '{unit.rent_duration_type}'. "
-                "Proceeding anyway, but amounts may be unexpected."
-            )
-            raise ValueError("PaymentPlan mode does not match Unit rent_duration_type.")
+
+    def create_agreement(self, unit, tenant, payment_plan, terms_template_id=None, custom_terms=None, **kwargs):
+        """Create a rental agreement with terms, coverage/installments, and inactive state."""
+        # -- Terms --
+        if terms_template_id:
+            terms_template = self.template_service.get_by_id(terms_template_id)
+            if not terms_template or terms_template.property != unit.property:
+                raise ValueError("Invalid terms template for this property")
+            terms_text = terms_template.content
+        elif custom_terms:
+            terms_text = custom_terms
+        else:
+            raise ValueError("Terms are required. Please provide a template or custom terms.")
+
+        # -- Existing logic --
         if payment_plan.mode == "monthly":
+            if unit.rent_duration_type != "monthly":
+                raise ValueError("PaymentPlan mode does not match Unit rent_duration_type.")
             agreement = self.repository.create(
                 unit=unit,
                 tenant=tenant,
                 payment_plan=payment_plan,
                 start_date=timezone.now().date(),
                 coverage_end_date=timezone.now().date(),
-                is_active=True,
+                terms_text=terms_text,
+                terms_template=terms_template,
+                is_active=False,
+                **kwargs
             )
         else:  # yearly
-            installments = (
-                self.payment_plan_repo.get_with_installments(payment_plan.id)
-                .installments.all()
-                .order_by("order_index")
-            )
+            if unit.rent_duration_type != "yearly":
+                raise ValueError("PaymentPlan mode does not match Unit rent_duration_type.")
+            installments = self.payment_plan_repo.get_with_installments(payment_plan.id).installments.all().order_by("order_index")
             installments_list = []
             for inst in installments:
                 amount = (unit.yearly_rent * inst.percent / 100).quantize(Decimal("1"))
-                installments_list.append(
-                    {
-                        "percent": float(inst.percent),
-                        "amount": str(amount),
-                        "paid_amount": "0",
-                        "remaining": str(amount),
-                        "status": "pending",
-                        "due_date": (
-                            inst.due_date.isoformat() if inst.due_date else None
-                        ),
-                    }
-                )
+                installments_list.append({
+                    "percent": float(inst.percent),
+                    "amount": str(amount),
+                    "paid_amount": "0",
+                    "remaining": str(amount),
+                    "status": "pending",
+                    "due_date": inst.due_date.isoformat() if inst.due_date else None,
+                })
             status_data = {
                 "installments": installments_list,
                 "total_paid": "0",
@@ -228,11 +237,152 @@ class RentalAgreementService(BaseService[RentalAgreement]):
                 payment_plan=payment_plan,
                 start_date=timezone.now().date(),
                 installment_status=status_data,
-                is_active=True,
+                terms_text=terms_text,
+                terms_template=terms_template,
+                is_active=False,
+                **kwargs
             )
+
+        # -- Mark unit occupied --
         unit.status = "occupied"
-        unit.save()
+        unit.save(update_fields=["status"])
+
+        # -- Send email --
+        self._send_agreement_creation_email(agreement)
+
         return agreement
+
+
+    def _send_agreement_creation_email(self, agreement):
+        frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:5734")
+        accept_url = f"{frontend_url}/agreement/accept/{agreement.acceptance_token}"
+
+        tenant_email = agreement.tenant.user.email
+        tenant_name = agreement.tenant.user.get_full_name()
+
+        property_obj = agreement.unit.property
+        primary_owner = property_obj.get_payout_owner()
+        landlord_name = primary_owner.user.get_full_name() if primary_owner else "Landlord"
+
+        # Send to tenant
+        send_notification.delay(
+            channel="email",
+            recipient=tenant_email,
+            subject="Please accept your rental agreement",
+            template_name="emails/payments/agreement_accept.html",
+            context={
+                "tenant_name": tenant_name,
+                "accept_url": accept_url,
+                "property_name": property_obj.name,
+                "unit_number": agreement.unit.unit_number,
+                "landlord_name": landlord_name,
+            }
+        )
+
+    def accept_agreement(self, token, user, ip_address, user_agent):
+        agreement = self.repository.get_by_acceptance_token(token)
+        if not agreement:
+            raise ValueError("Agreement not found or invalid token")
+        if agreement.tenant.user != user:
+            raise PermissionError("You are not the tenant of this agreement")
+
+        agreement, acceptance = self.repository.accept_agreement(
+            agreement.id, user, ip_address, user_agent
+        )
+
+        self._send_agreement_accepted_email(agreement)
+        return agreement, acceptance
+
+    def _send_agreement_accepted_email(self, agreement):
+        property_obj = agreement.unit.property
+        primary_owner = property_obj.get_payout_owner()
+        landlord_email = primary_owner.user.email if primary_owner else None
+
+        if landlord_email:
+            frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:5734")
+            send_notification.delay(
+                channel="email",
+                recipient=landlord_email,
+                subject="Tenant accepted the rental agreement",
+                template_name="emails/payments/agreement_accepted.html",
+                context={
+                    "tenant_name": agreement.tenant.user.get_full_name(),
+                    "property_name": property_obj.name,
+                    "unit_number": agreement.unit.unit_number,
+                    "agreement_id": agreement.id,
+                    "frontend_url": frontend_url,
+                    "landlord_name": primary_owner.user.get_full_name(),
+                }
+            )
+
+    def get_acceptance_data(self, agreement_id):
+        agreement = self.get_by_id(agreement_id)
+        if not agreement:
+            raise ValueError("Agreement not found")
+        if not agreement.is_active:
+            raise ValueError("Agreement has not been accepted yet")
+        acceptance = getattr(agreement, "acceptance_record", None)
+        if not acceptance:
+            raise ValueError("No acceptance record found (agreement accepted but record missing)")
+        return acceptance
+
+
+    # def create_agreement(self, unit, tenant, payment_plan) -> RentalAgreement:
+    #     if (
+    #         payment_plan.mode == "monthly" and unit.rent_duration_type != "monthly"
+    #     ) or (payment_plan.mode == "yearly" and unit.rent_duration_type != "yearly"):
+    #         logger.warning(
+    #             f"PaymentPlan mode '{payment_plan.mode}' does not match Unit rent_duration_type '{unit.rent_duration_type}'. "
+    #             "Proceeding anyway, but amounts may be unexpected."
+    #         )
+    #         raise ValueError("PaymentPlan mode does not match Unit rent_duration_type.")
+    #     if payment_plan.mode == "monthly":
+    #         agreement = self.repository.create(
+    #             unit=unit,
+    #             tenant=tenant,
+    #             payment_plan=payment_plan,
+    #             start_date=timezone.now().date(),
+    #             coverage_end_date=timezone.now().date(),
+    #             is_active=True,
+    #         )
+    #     else:  # yearly
+    #         installments = (
+    #             self.payment_plan_repo.get_with_installments(payment_plan.id)
+    #             .installments.all()
+    #             .order_by("order_index")
+    #         )
+    #         installments_list = []
+    #         for inst in installments:
+    #             amount = (unit.yearly_rent * inst.percent / 100).quantize(Decimal("1"))
+    #             installments_list.append(
+    #                 {
+    #                     "percent": float(inst.percent),
+    #                     "amount": str(amount),
+    #                     "paid_amount": "0",
+    #                     "remaining": str(amount),
+    #                     "status": "pending",
+    #                     "due_date": (
+    #                         inst.due_date.isoformat() if inst.due_date else None
+    #                     ),
+    #                 }
+    #             )
+    #         status_data = {
+    #             "installments": installments_list,
+    #             "total_paid": "0",
+    #             "total_remaining": str(unit.yearly_rent),
+    #             "next_installment_index": 0,
+    #         }
+    #         agreement = self.repository.create(
+    #             unit=unit,
+    #             tenant=tenant,
+    #             payment_plan=payment_plan,
+    #             start_date=timezone.now().date(),
+    #             installment_status=status_data,
+    #             is_active=True,
+    #         )
+    #     unit.status = "occupied"
+    #     unit.save()
+    #     return agreement
 
     def get_available_payment_options(self, agreement: RentalAgreement) -> list:
         plan = agreement.payment_plan

@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from apps.core.models import TimeStampedUUIDModel
@@ -215,7 +216,42 @@ class RentalAgreement(TimeStampedUUIDModel):
         verbose_name=_("Terminated by"),
     )
 
-    is_active = models.BooleanField(_("Active"), default=True)
+
+    # Terms
+    terms_template = models.ForeignKey(
+        "properties.TermTemplate",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="agreements",
+        verbose_name=_("Terms Template"),
+        help_text="The template used for this agreement (snapshot stored in terms_text).",
+    )
+    terms_text = models.TextField(
+        _("Terms and conditions text"),
+        blank=True,
+        help_text="Full text of the agreement terms (snapshot at creation).",
+        
+    )
+    acceptance_token = models.UUIDField(
+        _("Acceptance token"),
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+    )
+    terms_accepted_at = models.DateTimeField(_("Terms accepted at"), null=True, blank=True)
+    terms_accepted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="accepted_agreements",
+        verbose_name=_("Terms accepted by"),
+        
+    )
+    is_active = models.BooleanField(_("Active"), default=False)  
+
+
 
     class Meta:
         verbose_name = _("Rental agreement")
@@ -466,3 +502,23 @@ class AuditLog(models.Model):
     target_id = models.CharField(max_length=36)
     changes = models.JSONField(default=dict)
     timestamp = models.DateTimeField(auto_now_add=True)
+
+
+class AgreementAcceptance(TimeStampedUUIDModel):
+    agreement = models.OneToOneField(
+        RentalAgreement,
+        on_delete=models.CASCADE,
+        related_name="acceptance_record",
+        verbose_name=_("Agreement"),
+    )
+    accepted_at = models.DateTimeField(_("Accepted at"), auto_now_add=True)
+    ip_address = models.GenericIPAddressField(_("IP address"), null=True, blank=True)
+    user_agent = models.CharField(_("User agent"), max_length=255, blank=True)
+    terms_snapshot = models.TextField(_("Terms snapshot"), help_text="Copy of terms at acceptance time.")
+
+    class Meta:
+        verbose_name = _("Agreement Acceptance")
+        verbose_name_plural = _("Agreement Acceptances")
+
+    def __str__(self):
+        return f"Acceptance of {self.agreement.id} at {self.accepted_at}"

@@ -24,6 +24,7 @@ from .serializers import (
     PropertyManagerListSerializer,
     PropertyManagerAddSerializer,
     PropertyManagerRemoveSerializer,
+    TermTemplateSerializer,
 )
 from .services import (
     PropertyService,
@@ -31,6 +32,7 @@ from .services import (
     PropertyOwnershipService,
     ManagerService,
     UnitService,
+    TermTemplateService,
 )
 from .utils import (
     StandardResultsSetPagination,
@@ -831,3 +833,70 @@ class OwnerSubscriptionUpdateView(APIView):
             )
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TermTemplateListCreateView(APIView):
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = TermTemplateService()
+
+    def get(self, request):
+        
+        property_id = request.query_params.get("property")
+        if not property_id:
+            return Response({"error": "property_id required"}, status=400)
+        templates = self.service.get_templates_for_property(property_id)
+        serializer = TermTemplateSerializer(templates, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = TermTemplateSerializer(data=request.data)
+        if serializer.is_valid():
+            template = self.service.create_template(
+                property_id=serializer.validated_data["property_id"],
+                name=serializer.validated_data["name"],
+                content=serializer.validated_data["content"],
+            )
+            output = TermTemplateSerializer(template)
+            return Response(output.data, status=201)
+        return Response(serializer.errors, status=400)
+
+
+class TermTemplateDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = TermTemplateService()
+
+    def get(self, request, pk):
+        template = self.service.get_by_id(pk)
+        if not template:
+            return Response({"detail": "Not found"}, status=404)
+        self.check_object_permissions(
+            request, template.property
+        )  # reuse property permission
+        serializer = TermTemplateSerializer(template)
+        return Response(serializer.data)
+
+    def patch(self, request, pk):
+        template = self.service.get_by_id(pk)
+        if not template:
+            return Response({"detail": "Not found"}, status=404)
+        self.check_object_permissions(request, template.property)
+        serializer = TermTemplateSerializer(template, data=request.data, partial=True)
+        if serializer.is_valid():
+            updated = self.service.update_template(pk, **serializer.validated_data)
+            output = TermTemplateSerializer(updated)
+            return Response(output.data)
+        return Response(serializer.errors, status=400)
+
+    def delete(self, request, pk):
+        template = self.service.get_by_id(pk)
+        if not template:
+            return Response({"detail": "Not found"}, status=404)
+        self.check_object_permissions(request, template.property)
+        self.service.delete_template(pk)
+        return Response(status=204)

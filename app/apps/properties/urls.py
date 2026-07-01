@@ -22,6 +22,8 @@ from .views import (
     UnitImageDeleteView,
     OwnerSubscriptionView,
     OwnerSubscriptionUpdateView,
+    TermTemplateListCreateView,
+    TermTemplateDetailView,
 )
 
 app_name = "properties"
@@ -110,4 +112,8 @@ urlpatterns = [
         OwnerSubscriptionUpdateView.as_view(),
         name="owner-subscription-update",
     ),
+
+    # Term Templates
+    path("term-templates/", TermTemplateListCreateView.as_view(), name="term-template-list"),
+    path("term-templates/<uuid:pk>/", TermTemplateDetailView.as_view(), name="term-template-detail"),
 ]

@@ -1,0 +1,324 @@
+{
+  "info": {
+    "name": "Blizton - Agreement Terms & Acceptance Workflow",
+    "description": "Complete API for managing term templates, creating rental agreements with terms, tenant acceptance, and acceptance record retrieval.\n\n**Base URL:** `http://localhost/api/v1/`\n\n**Authentication:** All endpoints except public health checks require Bearer JWT token.\n\n---\n\n## Flow Overview\n\n1. **Landlord** creates term templates for a property.\n2. **Landlord** creates a rental agreement, selecting a template OR providing custom terms.\n3. **System** sends email to tenant with acceptance link (frontend URL).\n4. **Tenant** logs in and accepts via `/agreements/accept/<token>/`.\n5. **System** sends confirmation email to landlord.\n6. **Landlord/Tenant** can retrieve acceptance record for printing.\n\n---\n\n## Environment Variables\n\n| Variable | Description | Example |\n|----------|-------------|---------|\n| `baseUrl` | API base URL | `http://localhost/api/v1` |\n| `token` | JWT access token | `eyJhbGciOiJIUzI1NiIs...` |\n| `propertyId` | UUID of a property | `550e8400-e29b-41d4-a716-446655440000` |\n| `templateId` | UUID of a term template | `a1b2c3d4-e5f6-7890-abcd-ef1234567890` |\n| `agreementId` | UUID of the created agreement | `b2c3d4e5-f6a7-8901-bcde-f234567890ab` |\n| `acceptToken` | UUID token from agreement (for acceptance) | `c3d4e5f6-a7b8-9012-cdef-34567890abcd` |",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Term Templates",
+      "description": "Landlord creates and manages reusable terms templates per property.",
+      "item": [
+        {
+          "name": "List Templates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/properties/term-templates/?property={{propertyId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["properties", "term-templates"],
+              "query": [
+                {
+                  "key": "property",
+                  "value": "{{propertyId}}",
+                  "description": "UUID of the property (required)"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"property_id\": \"{{propertyId}}\",\n  \"name\": \"Standard Rental Terms v1\",\n  \"content\": \"This rental agreement is governed by the laws of Cameroon...\\n\\n1. Rent is due on the 1st of each month.\\n2. Late fee of 5% applies after 5 days grace.\\n3. Security deposit is equal to one month's rent.\\n4. Tenant must maintain the unit in good condition.\\n5. ...\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/properties/term-templates/",
+              "host": ["{{baseUrl}}"],
+              "path": ["properties", "term-templates"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Retrieve Template",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/properties/term-templates/{{templateId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["properties", "term-templates", "{{templateId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Template",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Standard Rental Terms v2\",\n  \"content\": \"Updated terms...\",\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/properties/term-templates/{{templateId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["properties", "term-templates", "{{templateId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Template",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/properties/term-templates/{{templateId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["properties", "term-templates", "{{templateId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Rental Agreement with Terms",
+      "description": "Create a rental agreement that includes terms (template or custom).",
+      "item": [
+        {
+          "name": "Create Agreement with Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"unit_id\": \"unit-uuid-here\",\n  \"tenant_id\": \"tenant-uuid-here\",\n  \"payment_plan_id\": \"plan-uuid-here\",\n  \"terms_template_id\": \"{{templateId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payments/agreements/",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", "agreements"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Agreement with Custom Terms",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"unit_id\": \"unit-uuid-here\",\n  \"tenant_id\": \"tenant-uuid-here\",\n  \"payment_plan_id\": \"plan-uuid-here\",\n  \"terms_text\": \"Custom terms written by landlord...\\n\\n1. Rent due on 5th of each month.\\n2. No pets allowed.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payments/agreements/",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", "agreements"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Acceptance Workflow",
+      "description": "Tenant accepts the agreement. Agreement becomes active. Acceptance record created.",
+      "item": [
+        {
+          "name": "Accept Agreement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments/agreements/accept/{{acceptToken}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", "agreements", "accept", "{{acceptToken}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Acceptance Record (for Printing)",
+      "description": "Retrieve the acceptance record details (snapshot of terms, accepted_at, IP, user_agent).",
+      "item": [
+        {
+          "name": "Get Acceptance Record",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments/agreements/{{agreementId}}/acceptance/",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", "agreements", "{{agreementId}}", "acceptance"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Example: Set token before running requests",
+          "// pm.environment.set('token', 'your_jwt_token');",
+          "// pm.environment.set('propertyId', '...');",
+          "// etc."
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('Status code is 2xx', function () {",
+          "    pm.response.to.be.success;",
+          "});"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "propertyId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "templateId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "agreementId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "acceptToken",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
