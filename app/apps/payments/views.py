@@ -30,6 +30,8 @@ from django.core.exceptions import PermissionDenied
 from .serializers import SubscriptionPlanSerializer
 from .services import SubscriptionPlanService
 
+from django.core.exceptions import ObjectDoesNotExist
+
 logger = logging.getLogger(__name__)
 
 
@@ -552,3 +554,88 @@ class AgreementAcceptanceDetailView(APIView):
         except ValueError as e:
             print("### we are here 3", e)
             return Response({"error": str(e)}, status=404)
+
+
+
+
+
+class ValidatePINView(APIView):
+    """
+    Validate the current user's owner payment PIN.
+    POST: { "pin": "1234" }
+    Returns 200 if valid, 400 otherwise.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        pin = request.data.get("pin")
+        if not pin:
+            return Response({"detail": "PIN is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        try:
+            owner = user.owner_profile
+        except ObjectDoesNotExist:
+            return Response({"detail": "User is not an owner."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if owner.check_payment_pin(pin):
+            return Response({"valid": True}, status=status.HTTP_200_OK)
+        else:
+            return Response({"valid": False, "detail": "Invalid PIN."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class RecordManualPaymentView(APIView):
+    permission_classes = [IsAuthenticated, CanManageRentalAgreement]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = RentalAgreementService()
+
+    def post(self, request, agreement_id):
+        # Check subscription status
+        try:
+            owner = request.user.owner_profile
+        except ObjectDoesNotExist:
+            return Response({"detail": "User is not an owner."}, status=403)
+
+        if not owner.has_active_subscription():
+            return Response(
+                {"detail": "Manual payments are only available for subscribed landlords."},
+                status=403
+            )
+
+        # Validate PIN
+        pin = request.data.get("pin")
+        if not pin:
+            return Response({"detail": "Payment PIN is required."}, status=400)
+        if not owner.check_payment_pin(pin):
+            return Response({"detail": "Invalid PIN."}, status=400)
+
+        # Proceed with manual payment
+        serializer = ManualPaymentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        try:
+            payment = self.service.record_manual_payment(
+                agreement_id=agreement_id,
+                amount=serializer.validated_data["amount"],
+                payment_method=serializer.validated_data["payment_method"],
+                payment_date=serializer.validated_data.get("payment_date"),
+                notes=serializer.validated_data.get("notes", ""),
+                recorded_by_user=request.user,
+            )
+            # Trigger receipt generation
+            from apps.payments.tasks import generate_receipt_task
+            generate_receipt_task.delay(str(payment.id))
+
+            from apps.payments.services import AuditService
+            AuditService.log(
+                actor=request.user,
+                action="manual_payment",
+                target=payment,
+                changes={"amount": payment.amount, "method": payment.payment_method},
+            )
+            return Response(PaymentSerializer(payment).data, status=201)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=400)
