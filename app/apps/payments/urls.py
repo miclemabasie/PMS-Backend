@@ -20,6 +20,8 @@ from .views import (
     AgreementAcceptanceDetailView,
     RentalAgreementUpdateTermsView,
     ValidatePINView,
+    ReceiptDetailView,
+
 )
 
 app_name = "agreements"
@@ -100,4 +102,6 @@ urlpatterns = [
     path("agreements/<uuid:agreement_id>/acceptance/", AgreementAcceptanceDetailView.as_view(), name="agreement-acceptance-detail"),
 
     path("validate-pin/", ValidatePINView.as_view(), name="validate-pin"),
+
+    path("receipts/<uuid:payment_id>/", ReceiptDetailView.as_view(), name="receipt-detail"),
 ]

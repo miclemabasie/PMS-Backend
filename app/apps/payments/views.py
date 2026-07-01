@@ -11,7 +11,9 @@ from django.shortcuts import get_object_or_404
 from apps.properties.services import UnitService
 from apps.tenants.models import Tenant
 
-from .services import PaymentPlanService, RentalAgreementService, PaymentService
+from .services import PaymentPlanService, RentalAgreementService, PaymentService, AuditService, SubscriptionPlanService, ReceiptService
+
+
 from .serializers import (
     PaymentPlanSerializer,
     InstallmentSerializer,
@@ -20,18 +22,18 @@ from .serializers import (
     MakePaymentSerializer,
     ManualPaymentSerializer,
     AgreementAcceptanceSerializer,
-    RentalAgreementCreateSerializer
+    RentalAgreementCreateSerializer,
+    SubscriptionPlanSerializer,
 )
 from .permissions import (
     IsLandlordOrManagerOrSuperAdminForUnit,
     CanManageRentalAgreement,
 )
 from django.core.exceptions import PermissionDenied
-from .serializers import SubscriptionPlanSerializer
-from .services import SubscriptionPlanService
+
 
 from django.core.exceptions import ObjectDoesNotExist
-
+from apps.payments.tasks import generate_receipt_task
 logger = logging.getLogger(__name__)
 
 
@@ -431,39 +433,39 @@ class AdminSubscriptionPlanDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class RecordManualPaymentView(APIView):
-    permission_classes = [IsAuthenticated, CanManageRentalAgreement]
+# class RecordManualPaymentView(APIView):
+#     permission_classes = [IsAuthenticated, CanManageRentalAgreement]
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.service = RentalAgreementService()
+#     def __init__(self, **kwargs):
+#         super().__init__(**kwargs)
+#         self.service = RentalAgreementService()
 
-    def post(self, request, agreement_id):
-        serializer = ManualPaymentSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=400)
+#     def post(self, request, agreement_id):
+#         serializer = ManualPaymentSerializer(data=request.data)
+#         if not serializer.is_valid():
+#             return Response(serializer.errors, status=400)
 
-        try:
-            payment = self.service.record_manual_payment(
-                agreement_id=agreement_id,
-                amount=serializer.validated_data["amount"],
-                payment_method=serializer.validated_data["payment_method"],
-                payment_date=serializer.validated_data.get("payment_date"),
-                notes=serializer.validated_data.get("notes", ""),
-                recorded_by_user=request.user,
-            )
+#         try:
+#             payment = self.service.record_manual_payment(
+#                 agreement_id=agreement_id,
+#                 amount=serializer.validated_data["amount"],
+#                 payment_method=serializer.validated_data["payment_method"],
+#                 payment_date=serializer.validated_data.get("payment_date"),
+#                 notes=serializer.validated_data.get("notes", ""),
+#                 recorded_by_user=request.user,
+#             )
 
-            from apps.payments.services import AuditService
+#             from apps.payments.services import AuditService
 
-            AuditService.log(
-                actor=request.user,
-                action="manual_payment",
-                target=payment,
-                changes={"amount": payment.amount, "method": payment.payment_method},
-            )
-            return Response(PaymentSerializer(payment).data, status=201)
-        except ValueError as e:
-            return Response({"error": str(e)}, status=400)
+#             AuditService.log(
+#                 actor=request.user,
+#                 action="manual_payment",
+#                 target=payment,
+#                 changes={"amount": payment.amount, "method": payment.payment_method},
+#             )
+#             return Response(PaymentSerializer(payment).data, status=201)
+#         except ValueError as e:
+#             return Response({"error": str(e)}, status=400)
 
 
 class PaymentWebhookView(APIView):
@@ -585,57 +587,118 @@ class ValidatePINView(APIView):
 
 
 class RecordManualPaymentView(APIView):
+    """
+    Record a manual payment for a rental agreement.
+    Requires the user to be the landlord/manager of the property and have an active subscription.
+    A valid payment PIN must be provided.
+    """
     permission_classes = [IsAuthenticated, CanManageRentalAgreement]
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.service = RentalAgreementService()
-
     def post(self, request, agreement_id):
-        # Check subscription status
-        try:
-            owner = request.user.owner_profile
-        except ObjectDoesNotExist:
-            return Response({"detail": "User is not an owner."}, status=403)
-
-        if not owner.has_active_subscription():
-            return Response(
-                {"detail": "Manual payments are only available for subscribed landlords."},
-                status=403
-            )
-
-        # Validate PIN
-        pin = request.data.get("pin")
-        if not pin:
-            return Response({"detail": "Payment PIN is required."}, status=400)
-        if not owner.check_payment_pin(pin):
-            return Response({"detail": "Invalid PIN."}, status=400)
-
-        # Proceed with manual payment
+        # 1. Validate request data
         serializer = ManualPaymentSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response(serializer.errors, status=400)
-
-        try:
-            payment = self.service.record_manual_payment(
+            logger.warning(
+                "Manual payment validation failed",
+                user_id=request.user.pk,
                 agreement_id=agreement_id,
-                amount=serializer.validated_data["amount"],
-                payment_method=serializer.validated_data["payment_method"],
-                payment_date=serializer.validated_data.get("payment_date"),
-                notes=serializer.validated_data.get("notes", ""),
-                recorded_by_user=request.user,
+                errors=serializer.errors,
             )
-            # Trigger receipt generation
-            from apps.payments.tasks import generate_receipt_task
-            generate_receipt_task.delay(str(payment.id))
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            from apps.payments.services import AuditService
-            AuditService.log(
-                actor=request.user,
-                action="manual_payment",
-                target=payment,
-                changes={"amount": payment.amount, "method": payment.payment_method},
+        validated_data = serializer.validated_data
+
+        # 2. Extract PIN from request (not in serializer)
+        pin = request.data.get("pin")
+        if not pin:
+            return Response(
+                {"detail": "Payment PIN is required."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            return Response(PaymentSerializer(payment).data, status=201)
+
+        # 3. Call service
+        service = RentalAgreementService()
+        try:
+            payment = service.record_manual_payment(
+                agreement_id=agreement_id,
+                amount=validated_data["amount"],
+                payment_method=validated_data["payment_method"],
+                payment_date=validated_data.get("payment_date"),
+                notes=validated_data.get("notes", ""),
+                recorded_by_user=request.user,
+                pin=pin,
+            )
         except ValueError as e:
-            return Response({"error": str(e)}, status=400)
+            logger.error(
+                "Manual payment failed (value error)",
+                user_id=request.user.pk,
+                agreement_id=agreement_id,
+                error=str(e),
+            )
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except PermissionDenied as e:
+            logger.error(
+                "Manual payment failed (permission denied)",
+                user_id=request.user.pk,
+                agreement_id=agreement_id,
+                error=str(e),
+            )
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            logger.exception(
+                "Manual payment failed (unexpected error)",
+                user_id=request.user.pk,
+                agreement_id=agreement_id,
+            )
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # 4. Trigger receipt generation (async)
+        generate_receipt_task.delay(str(payment.id))
+
+        # 5. Log audit
+        AuditService.log(
+            actor=request.user,
+            action="manual_payment",
+            target=payment,
+            changes={
+                "amount": str(payment.amount),
+                "method": payment.payment_method,
+                "agreement_id": str(payment.agreement.id),
+            },
+        )
+
+        logger.info(
+            "Manual payment recorded successfully",
+            user_id=request.user.pk,
+            agreement_id=agreement_id,
+            payment_id=str(payment.id),
+            amount=payment.amount,
+        )
+
+        # 6. Return response
+        response_serializer = PaymentSerializer(payment)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class ReceiptDetailView(APIView):
+    """
+    Get receipt data for a specific payment.
+    Only accessible to the tenant, landlord, or manager of the agreement.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, payment_id):
+        service = ReceiptService()
+        try:
+            data = service.get_receipt_for_user(payment_id, request.user)
+        except service.PaymentNotFound:
+            return Response({"detail": "Payment not found."}, status=404)
+        except service.PermissionDenied:
+            return Response({"detail": "Permission denied."}, status=403)
+        except Exception as e:
+            return Response({"detail": "Receipt generation failed."}, status=500)
+
+        return Response(data, status=200)

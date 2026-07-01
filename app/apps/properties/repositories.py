@@ -4,6 +4,8 @@ from datetime import timedelta
 from django.utils import timezone
 
 from apps.properties.models import TermTemplate
+from django.contrib.auth.hashers import check_password
+
 
 # apps/properties/repositories.py
 # apps/properties/repositories.py
@@ -40,6 +42,16 @@ class OwnerRepository(DjangoRepository[Owner]):
             ]
         )
         return owner
+
+    def has_active_subscription(self, owner: Owner) -> bool:
+        """Check if the owner has an active or trial subscription."""
+        return owner.subscription_status in ("active", "trial")
+
+    def validate_payment_pin(self, owner: Owner, raw_pin: str) -> bool:
+        """Validate the provided PIN against the stored hashed PIN."""
+        if not owner.payment_pin:
+            return False
+        return check_password(raw_pin, owner.payment_pin)
 
 
 class ManagerRepository(DjangoRepository[Manager]):

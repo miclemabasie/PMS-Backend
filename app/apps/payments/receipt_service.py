@@ -1,40 +1,99 @@
+# apps/payments/receipt_service.py
+
 import logging
-from decimal import Decimal
 from typing import Dict, Any, Optional
 from django.utils import timezone
-from django.core.exceptions import ObjectDoesNotExist
-
+from django.core.exceptions import PermissionDenied
 from apps.payments.models import Payment, Receipt
-from apps.payments.utils import generate_receipt_number
+from apps.payments.utils.receipts import generate_receipt_number
+from apps.payments.repositories import ReceiptRepository
 from apps.reports.models import TemplateConfig
+from apps.payments.tasks import send_receipt_email
 
 logger = logging.getLogger(__name__)
 
 
 class ReceiptService:
-    """Service to generate and retrieve receipt data."""
+    """Service for generating and retrieving receipt data – all business logic here."""
+
+    # Custom exceptions (can be caught by the view)
+    class PaymentNotFound(Exception):
+        pass
+
+    class PermissionDenied(Exception):
+        pass
+
+    def __init__(self):
+        self.receipt_repo = ReceiptRepository()
+
+    def get_receipt_for_user(self, payment_id: str, user) -> Dict[str, Any]:
+        """
+        High-level method: fetch receipt data for a user.
+        Handles permission checks, retrieval, and on-demand generation.
+        Returns receipt data dict, or raises exceptions.
+        """
+        # 1. Get payment with permission check
+        payment = self._get_payment_with_permission(payment_id, user)
+
+        # 2. Try to get existing receipt data
+        data = self.get_receipt_data(payment_id)
+
+        if data is None:
+            # 3. Generate receipt on-demand
+            receipt = self.create_receipt(payment)
+            data = receipt.data
+            # 4. Trigger email asynchronously
+            send_receipt_email.delay(str(payment.id))
+
+        return data
+
+    def _get_payment_with_permission(self, payment_id: str, user) -> Payment:
+        """
+        Fetch payment and check if the user has permission to view it.
+        Raises PaymentNotFound or PermissionDenied.
+        """
+        try:
+            payment = Payment.objects.select_related(
+                "agreement__unit__property",
+                "agreement__tenant",
+            ).get(id=payment_id)
+        except Payment.DoesNotExist:
+            raise self.PaymentNotFound("Payment not found.")
+
+        # Permission check
+        agreement = payment.agreement
+
+        if user.is_superuser:
+            return payment
+
+        if hasattr(user, "tenant_profile") and agreement.tenant == user.tenant_profile:
+            return payment
+
+        if hasattr(user, "owner_profile"):
+            if agreement.unit.property.owners.filter(pkid=user.owner_profile.pkid).exists():
+                return payment
+
+        if hasattr(user, "manager_profile"):
+            if agreement.unit.property.managers.filter(pkid=user.manager_profile.pkid).exists():
+                return payment
+
+        raise self.PermissionDenied("User does not have permission to view this receipt.")
 
     def generate_receipt_data(self, payment: Payment) -> Dict[str, Any]:
-        """
-        Build the complete receipt data snapshot.
-        Includes payment, agreement, tenant, property, unit, fee breakdown,
-        and the landlord's template configuration.
-        """
+        """Build complete receipt data snapshot."""
         agreement = payment.agreement
         unit = agreement.unit
         property_obj = unit.property
         tenant = agreement.tenant
         owner = property_obj.get_payout_owner()  # primary owner
 
-        # Get template config (fallback to defaults if none)
         template_config = TemplateConfig.objects.filter(
             landlord=owner,
             template_type="receipt",
             is_default=True,
         ).first()
 
-        # Build receipt data
-        data = {
+        return {
             "receipt_number": generate_receipt_number(),
             "payment": {
                 "id": str(payment.id),
@@ -46,7 +105,7 @@ class ReceiptService:
                 "months_covered": float(payment.months_covered) if payment.months_covered else None,
                 "period_start": payment.period_start.isoformat() if payment.period_start else None,
                 "period_end": payment.period_end.isoformat() if payment.period_end else None,
-                "fee_breakdown": payment.fee_breakdown,  # already JSON
+                "fee_breakdown": payment.fee_breakdown,
                 "net_landlord_amount": float(payment.net_landlord_amount) if payment.net_landlord_amount else None,
             },
             "agreement": {
@@ -89,39 +148,33 @@ class ReceiptService:
                 "show_property_name": template_config.show_property_name if template_config else True,
             },
         }
-        return data
 
     def create_receipt(self, payment: Payment) -> Receipt:
         """
-        Generate receipt data, create Receipt record, and return it.
-        May be called synchronously or asynchronously.
+        Generate receipt data and persist it.
+        Returns the Receipt object. Does NOT send email.
         """
         data = self.generate_receipt_data(payment)
         receipt_number = data["receipt_number"]
 
-        receipt, created = Receipt.objects.get_or_create(
-            payment=payment,
-            defaults={
-                "receipt_number": receipt_number,
-                "data": data,
-                "status": "generated",
-                "generated_at": timezone.now(),
-            }
-        )
-        if not created:
-            # Update existing receipt (e.g., if regenerating)
-            receipt.receipt_number = receipt_number
-            receipt.data = data
-            receipt.status = "generated"
-            receipt.generated_at = timezone.now()
-            receipt.save(update_fields=["receipt_number", "data", "status", "generated_at"])
+        existing = self.receipt_repo.get_by_payment(str(payment.id))
+        if existing:
+            receipt = self.receipt_repo.update_receipt(
+                existing,
+                receipt_number=receipt_number,
+                data=data,
+                status="generated",
+                generated_at=timezone.now(),
+            )
+        else:
+            receipt = self.receipt_repo.create_receipt(payment, data, receipt_number)
 
+        logger.info(f"Receipt {receipt.receipt_number} created for payment {payment.id}")
         return receipt
 
     def get_receipt_data(self, payment_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieve receipt data for a payment, if exists."""
-        try:
-            receipt = Receipt.objects.get(payment__id=payment_id)
+        """Retrieve receipt data for a payment, or None if not generated."""
+        receipt = self.receipt_repo.get_by_payment(payment_id)
+        if receipt:
             return receipt.data
-        except Receipt.DoesNotExist:
-            return None
+        return None

@@ -626,10 +626,26 @@ class RentalAgreementService(BaseService[RentalAgreement]):
         payment_date=None,
         notes="",
         recorded_by_user=None,
+        pin: Optional[str] = None,
     ):
+        """
+        Record a manual payment for an agreement.
+        """
         agreement = self.get_agreement_for_user(agreement_id, recorded_by_user)
         if not agreement.is_active:
             raise ValueError("Cannot record payment for inactive agreement")
+        from apps.properties.services import OwnerService
+        owner_service = OwnerService()
+        try:
+            owner = recorded_by_user.owner_profile
+        except AttributeError:
+            raise PermissionError("User is not an owner.")
+
+        if not owner_service.has_active_subscription(owner):
+            raise PermissionError("Manual payments are only allowed for subscribed landlords.")
+
+        if not owner_service.validate_payment_pin(owner, pin or ""):
+            raise PermissionError("Invalid payment PIN.")
 
         property_obj = agreement.unit.property
         owner = property_obj.get_payout_owner()
