@@ -9,6 +9,7 @@ from .models import (
     SubscriptionPlan,
     IdempotencyKey,
     AgreementAcceptance,
+    Receipt,
 )
 from django.utils import timezone
 from datetime import timedelta
@@ -266,3 +267,28 @@ class IdempotencyKeyRepository(DjangoRepository[IdempotencyKey]):
         )
 
 
+class ReceiptRepository(DjangoRepository[Receipt]):
+    def __init__(self):
+        super().__init__(Receipt)
+
+    def get_by_payment(self, payment_id: str) -> Optional[Receipt]:
+        try:
+            return self.model_class.objects.get(payment__id=payment_id)
+        except Receipt.DoesNotExist:
+            return None
+
+    def create_receipt(self, payment, data: dict, receipt_number: str) -> Receipt:
+        from django.utils import timezone
+        return self.model_class.objects.create(
+            payment=payment,
+            receipt_number=receipt_number,
+            data=data,
+            status="generated",
+            generated_at=timezone.now(),
+        )
+
+    def update_receipt(self, receipt: Receipt, **kwargs) -> Receipt:
+        for key, value in kwargs.items():
+            setattr(receipt, key, value)
+        receipt.save()
+        return receipt

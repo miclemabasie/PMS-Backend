@@ -11,7 +11,11 @@ from django.shortcuts import get_object_or_404
 from apps.properties.services import UnitService
 from apps.tenants.models import Tenant
 
-from .services import PaymentPlanService, RentalAgreementService, PaymentService
+from .services import PaymentPlanService, RentalAgreementService, PaymentService, AuditService, SubscriptionPlanService
+
+from apps.payments.receipt_service import ReceiptService
+
+
 from .serializers import (
     PaymentPlanSerializer,
     InstallmentSerializer,
@@ -20,16 +24,18 @@ from .serializers import (
     MakePaymentSerializer,
     ManualPaymentSerializer,
     AgreementAcceptanceSerializer,
-    RentalAgreementCreateSerializer
+    RentalAgreementCreateSerializer,
+    SubscriptionPlanSerializer,
 )
 from .permissions import (
     IsLandlordOrManagerOrSuperAdminForUnit,
     CanManageRentalAgreement,
 )
 from django.core.exceptions import PermissionDenied
-from .serializers import SubscriptionPlanSerializer
-from .services import SubscriptionPlanService
 
+
+from django.core.exceptions import ObjectDoesNotExist
+from apps.payments.tasks import generate_receipt_task
 logger = logging.getLogger(__name__)
 
 
@@ -429,40 +435,6 @@ class AdminSubscriptionPlanDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class RecordManualPaymentView(APIView):
-    permission_classes = [IsAuthenticated, CanManageRentalAgreement]
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.service = RentalAgreementService()
-
-    def post(self, request, agreement_id):
-        serializer = ManualPaymentSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=400)
-
-        try:
-            payment = self.service.record_manual_payment(
-                agreement_id=agreement_id,
-                amount=serializer.validated_data["amount"],
-                payment_method=serializer.validated_data["payment_method"],
-                payment_date=serializer.validated_data.get("payment_date"),
-                notes=serializer.validated_data.get("notes", ""),
-                recorded_by_user=request.user,
-            )
-
-            from apps.payments.services import AuditService
-
-            AuditService.log(
-                actor=request.user,
-                action="manual_payment",
-                target=payment,
-                changes={"amount": payment.amount, "method": payment.payment_method},
-            )
-            return Response(PaymentSerializer(payment).data, status=201)
-        except ValueError as e:
-            return Response({"error": str(e)}, status=400)
-
 
 class PaymentWebhookView(APIView):
     permission_classes = []
@@ -552,3 +524,158 @@ class AgreementAcceptanceDetailView(APIView):
         except ValueError as e:
             print("### we are here 3", e)
             return Response({"error": str(e)}, status=404)
+
+
+
+
+
+class ValidatePINView(APIView):
+    """
+    Validate the current user's owner payment PIN.
+    POST: { "pin": "1234" }
+    Returns 200 if valid, 400 otherwise.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        pin = request.data.get("pin")
+        if not pin:
+            return Response({"detail": "PIN is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        try:
+            owner = user.owner_profile
+        except ObjectDoesNotExist:
+            return Response({"detail": "User is not an owner."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if owner.check_payment_pin(pin):
+            return Response({"valid": True}, status=status.HTTP_200_OK)
+        else:
+            return Response({"valid": False, "detail": "Invalid PIN."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ReceiptDetailView(APIView):
+    """
+    Get receipt data for a specific payment.
+    Only accessible to the tenant, landlord, or manager of the agreement.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, payment_id):
+        service = ReceiptService()
+        try:
+            data = service.get_receipt_for_user(payment_id, request.user)
+        except service.PaymentNotFound:
+            return Response({"detail": "Payment not found."}, status=404)
+        except service.PermissionDenied:
+            return Response({"detail": "Permission denied."}, status=403)
+        except Exception as e:
+            return Response({"detail": "Receipt generation failed."}, status=500)
+
+        return Response(data, status=200)
+
+
+# apps/payments/views.py (excerpt – only the RecordManualPaymentView)
+
+import logging
+logger = logging.getLogger(__name__)
+
+class RecordManualPaymentView(APIView):
+    """
+    Record a manual payment for a rental agreement.
+    Requires the user to be the landlord/manager of the property and have an active subscription.
+    A valid payment PIN must be provided.
+    """
+    permission_classes = [IsAuthenticated, CanManageRentalAgreement]
+
+    def post(self, request, agreement_id):
+        # 1. Validate request data
+        serializer = ManualPaymentSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning(
+                "Manual payment validation failed for agreement %s: %s",
+                agreement_id,
+                serializer.errors,
+            )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        validated_data = serializer.validated_data
+
+        # 2. Extract PIN from request (not in serializer)
+        pin = request.data.get("pin")
+        if not pin:
+            return Response(
+                {"detail": "Payment PIN is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 3. Call service
+        service = RentalAgreementService()
+        try:
+            payment = service.record_manual_payment(
+                agreement_id=agreement_id,
+                amount=validated_data["amount"],
+                payment_method=validated_data["payment_method"],
+                payment_date=validated_data.get("payment_date"),
+                notes=validated_data.get("notes", ""),
+                recorded_by_user=request.user,
+                pin=pin,
+            )
+        except ValueError as e:
+            logger.error(
+                "Manual payment value error for agreement %s: %s",
+                agreement_id,
+                str(e),
+            )
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except PermissionDenied as e:
+            logger.error(
+                "Manual payment permission denied for agreement %s: %s",
+                agreement_id,
+                str(e),
+            )
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except PermissionError as e:
+            # Catch the specific PIN error
+            logger.error(
+                "Manual payment PIN validation failed for agreement %s: %s",
+                agreement_id,
+                str(e),
+            )
+            return Response({"error": "Invalid payment PIN."}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            logger.exception(
+                "Unexpected error recording manual payment for agreement %s",
+                agreement_id,
+            )
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # 4. Trigger receipt generation (async)
+        generate_receipt_task.delay(str(payment.id))
+
+        # 5. Log audit
+        AuditService.log(
+            actor=request.user,
+            action="manual_payment",
+            target=payment,
+            changes={
+                "amount": str(payment.amount),
+                "method": payment.payment_method,
+                "agreement_id": str(payment.agreement.id),
+            },
+        )
+
+        logger.info(
+            "Manual payment recorded successfully for agreement %s, payment %s",
+            agreement_id,
+            payment.id,
+        )
+
+        # 6. Return response
+        response_serializer = PaymentSerializer(payment)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+        

@@ -522,3 +522,57 @@ class AgreementAcceptance(TimeStampedUUIDModel):
 
     def __str__(self):
         return f"Acceptance of {self.agreement.id} at {self.accepted_at}"
+
+
+# apps/payments/models.py
+
+class Receipt(TimeStampedUUIDModel):
+    payment = models.OneToOneField(
+        "payments.Payment",
+        on_delete=models.CASCADE,
+        related_name="receipt",
+        verbose_name=_("Payment"),
+    )
+    receipt_number = models.CharField(
+        _("Receipt number"),
+        max_length=50,
+        unique=True,
+        editable=False,
+    )
+    data = models.JSONField(
+        _("Receipt data"),
+        default=dict,
+        blank=True,
+        help_text=_("Snapshot of payment, tenant, property, and template config."),
+    )
+    status = models.CharField(
+        _("Status"),
+        max_length=20,
+        choices=[
+            ("pending", "Pending"),
+            ("generated", "Generated"),
+            ("failed", "Failed"),
+        ],
+        default="pending",
+    )
+    generated_at = models.DateTimeField(
+        _("Generated at"),
+        null=True,
+        blank=True,
+    )
+    error_message = models.TextField(
+        _("Error message"),
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = _("Receipt")
+        verbose_name_plural = _("Receipts")
+        indexes = [
+            models.Index(fields=["payment"]),
+            models.Index(fields=["receipt_number"]),
+            models.Index(fields=["status"]),
+        ]
+
+    def __str__(self):
+        return f"Receipt {self.receipt_number} for Payment {self.payment.id}"

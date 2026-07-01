@@ -106,6 +106,33 @@ class Owner(TimeStampedUUIDModel):
         help_text=_("Numéro d'Identification Unique"),
     )
 
+    payment_pin = models.CharField(
+        _("Payment Pin"),
+        max_length=128,
+        blank=True,
+        null=True,
+        help_text=_("Hashed PIN for manual payment authorization.")
+    )
+
+    def set_payment_pin(self, raw_pin: str) -> None:
+        from django.contrib.auth.hashers import make_password
+        self.payment_pin = make_password(raw_pin)
+        self.save(update_fields=["payment_pin"])
+
+
+    def check_payment_pin(self, raw_pin: str) -> bool:
+        from django.contrib.auth.hashers import check_password
+        if not self.payment_pin:
+            return False
+        return check_password(raw_pin, self.payment_pin)
+
+    
+    def has_active_subscription(self) -> bool:
+        """Check if the owner has an active subscription."""
+        return self.subscription_status in ("active", "trial")
+
+        
+
     class Meta:
         verbose_name = _("Owner")
         verbose_name_plural = _("Owners")

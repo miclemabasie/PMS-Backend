@@ -24,6 +24,7 @@ from .views import (
     OwnerSubscriptionUpdateView,
     TermTemplateListCreateView,
     TermTemplateDetailView,
+    OwnerSetPinView,
 )
 
 app_name = "properties"
@@ -116,4 +117,6 @@ urlpatterns = [
     # Term Templates
     path("term-templates/", TermTemplateListCreateView.as_view(), name="term-template-list"),
     path("term-templates/<uuid:pk>/", TermTemplateDetailView.as_view(), name="term-template-detail"),
+
+    path("owners/set-pin/", OwnerSetPinView.as_view(), name="owner-set-pin"),
 ]

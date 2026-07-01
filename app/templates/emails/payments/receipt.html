@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Your Payment Receipt</title>
+</head>
+<body style="font-family: Arial, sans-serif; background: #f4f6f8; padding: 20px; margin: 0;">
+    <div style="max-width:600px; margin:0 auto; background:white; border-radius:8px; padding:30px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+        <div style="text-align:center; border-bottom:2px solid #1a2a3a; padding-bottom:15px; margin-bottom:20px;">
+            <span style="font-size:24px; font-weight:bold; color:#1a2a3a;">Blizton</span>
+        </div>
+
+        <h1 style="color:#1a2a3a; font-size:22px;">Payment Receipt</h1>
+        <p>Dear <strong>{{ tenant_name }}</strong>,</p>
+
+        <p>Thank you for your payment of <strong>{{ amount }} XAF</strong> for <strong>{{ property_name }}</strong> (Unit {{ unit_number }}).</p>
+
+        <table style="width:100%; margin:20px 0; border-collapse:collapse; background:#f9fafc; border-radius:6px;">
+            <tr>
+                <td style="padding:10px; border-bottom:1px solid #e9ecef;"><strong>Receipt Number</strong></td>
+                <td style="padding:10px; border-bottom:1px solid #e9ecef;">{{ receipt_number }}</td>
+            </tr>
+            <tr>
+                <td style="padding:10px; border-bottom:1px solid #e9ecef;"><strong>Payment Date</strong></td>
+                <td style="padding:10px; border-bottom:1px solid #e9ecef;">{{ payment_date }}</td>
+            </tr>
+            <tr>
+                <td style="padding:10px; border-bottom:1px solid #e9ecef;"><strong>Payment Method</strong></td>
+                <td style="padding:10px; border-bottom:1px solid #e9ecef;">{{ payment_method }}</td>
+            </tr>
+            <tr>
+                <td style="padding:10px;"><strong>Period Covered</strong></td>
+                <td style="padding:10px;">
+                    {% if period_display %}
+                        {{ period_display }}
+                        {% if months_covered %}
+                            ({{ months_covered }} month{% if months_covered > 1 %}s{% endif %})
+                        {% endif %}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+
+        <p style="margin:25px 0;">
+            <a href="{{ receipt_url }}" style="display:inline-block; background:#1a73e8; color:#ffffff !important; text-decoration:none; padding:12px 28px; border-radius:6px; font-weight:600;">View Full Receipt</a>
+        </p>
+
+        <p style="font-size:14px; color:#555;">This is a system-generated receipt. Please keep it for your records.</p>
+
+        <hr style="margin:30px 0 15px; border:none; border-top:1px solid #e9ecef;">
+        <p style="font-size:12px; color:#888; text-align:center;">
+            &copy; 2026 Blizton Property Management – All rights reserved.
+        </p>
+    </div>
+</body>
+</html>

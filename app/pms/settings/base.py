@@ -484,4 +484,4 @@ logging.config.dictConfig(
 
 
 
-FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5734")
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5173")

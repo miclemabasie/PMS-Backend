@@ -61,15 +61,6 @@ EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 DEFAULT_FROM_EMAIL = "Blizton <noreply@blizton.com>"
 
-print(
-    EMAIL_HOST,
-    EMAIL_BACKEND,
-    EMAIL_HOST_USER,
-    EMAIL_HOST_PASSWORD,
-    EMAIL_USE_TLS,
-    DEFAULT_FROM_EMAIL,
-)
-
 # -----------------------------
 # Static & Media files
 # -----------------------------

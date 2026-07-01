@@ -99,11 +99,12 @@ def can_add_unit(property_obj, owner):
             )
     return True, ""
 
+    
+
 
 # ---------------------------------------------------
 # Owner Service
 # ---------------------------------------------------
-
 
 class OwnerService(BaseService[Owner]):
     def __init__(self):
@@ -179,6 +180,14 @@ class OwnerService(BaseService[Owner]):
         if not owner:
             raise ValueError("Owner not found")
         return self.assign_subscription(owner, subscription_plan_id)
+
+    def has_active_subscription(self, owner: Owner) -> bool:
+        """Check if the owner has an active subscription."""
+        return self.repository.has_active_subscription(owner)
+
+    def validate_payment_pin(self, owner: Owner, raw_pin: str) -> bool:
+        """Validate the owner's payment PIN."""
+        return self.repository.validate_payment_pin(owner, raw_pin)
 
 
 # ----------------------------------------------------------------------

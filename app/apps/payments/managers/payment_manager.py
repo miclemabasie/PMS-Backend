@@ -2,14 +2,14 @@ import logging
 import uuid
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, Any, Optional, Tuple
+from datetime import date, datetime, timedelta
 from django.db import transaction
-from datetime import datetime
 from django.utils import timezone
-from datetime import timedelta
 from django.conf import settings
+from dateutil.relativedelta import relativedelta
+
 from apps.payments.models import Payment, RentalAgreement
 from apps.payments.utils.rent_calculator import RentCalculator
-from dateutil.relativedelta import relativedelta
 from apps.properties.models import PaymentOwnerSplit
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ def make_json_serializable(obj: Any) -> Any:
     Recursively convert Decimal to string (or float) and handle other non‑serializable types.
     """
     if isinstance(obj, Decimal):
-        return str(obj)  # store as string to preserve precision
+        return str(obj)
     elif isinstance(obj, dict):
         return {k: make_json_serializable(v) for k, v in obj.items()}
     elif isinstance(obj, list):
@@ -44,7 +44,7 @@ class PaymentManager:
         self.plan = agreement.payment_plan
         self.unit = agreement.unit
         self.property = self.unit.property
-        self.owner = self.property.get_payout_owner()  # primary owner
+        self.owner = self.property.get_payout_owner()
         self.is_staging = getattr(settings, "STAGING_MODE", False) or getattr(
             settings, "DEBUG", False
         )
@@ -64,8 +64,8 @@ class PaymentManager:
         payment_method: str,
         phone_number: str = None,
         provider: str = None,
-        months: int = None,  # for monthly
-        installment_index: int = None,  # for yearly
+        months: int = None,
+        installment_index: int = None,
     ) -> Payment:
         """
         Step 1: Create pending payment record and call gateway execute.
@@ -134,17 +134,15 @@ class PaymentManager:
             self._pending_installment_index = installment_index
 
         # --------------------------------------------------
-        # 2. Calculate fees and expected total (using new RentCalculator)
+        # 2. Calculate fees and expected total
         # --------------------------------------------------
         calculator = RentCalculator(net_rent, self.property, self.owner)
         fee_breakdown = calculator.get_breakdown()
         expected_total = fee_breakdown["tenant_total"]
 
-        # Validate amount (allow net_rent only if it matches expected? but we already validated above)
-        # We keep the fallback: if amount == net_rent, we still allow (avoids fee for some reason)
         if amount != expected_total:
             if amount == net_rent:
-                # Tenant is paying exactly net rent, skipping fees – allow (risky, but legacy behaviour)
+                # Legacy fallback: accept net rent without fees (risky, but allowed)
                 pass
             else:
                 raise ValueError(
@@ -173,7 +171,7 @@ class PaymentManager:
             agreement=self.agreement,
             amount=amount,
             months_covered=None,
-            period_start=today,  # placeholder
+            period_start=today,  # placeholder, will be updated on completion
             period_end=today,
             payment_method=payment_method,
             status="pending",
@@ -186,7 +184,6 @@ class PaymentManager:
             fee_breakdown=fee_breakdown_serializable,
         )
 
-        # Store months or installment index
         if self.plan.mode == "monthly":
             payment.months_covered = months
             payment.save(update_fields=["months_covered"])
@@ -197,7 +194,6 @@ class PaymentManager:
         return payment
 
     def _get_tenant_total_for_net_rent(self, net_rent: Decimal) -> Decimal:
-        """Helper to compute tenant total (including fees) for a given net rent."""
         calculator = RentCalculator(net_rent, self.property, self.owner)
         return calculator.get_tenant_total()
 
@@ -211,7 +207,6 @@ class PaymentManager:
         If success, update agreement coverage/installments and mark payment completed.
         Returns status dict.
         """
-        # Lock the payment row for concurrency safety
         try:
             payment = (
                 Payment.objects.select_for_update()
@@ -224,7 +219,6 @@ class PaymentManager:
         if payment.status != "pending":
             return {"status": payment.status, "message": "Already processed"}
 
-        # Verify with gateway
         verification = self._verify_gateway_payment(payment.gateway_reference)
         if not verification["success"]:
             if verification.get("status") == "failed":
@@ -233,21 +227,14 @@ class PaymentManager:
                 return {"status": "failed", "message": verification.get("error")}
             return {"status": "pending", "message": "Waiting for user confirmation"}
 
-        # --------------------------------------------------
-        # SUCCESS: update agreement and finalise payment
-        # --------------------------------------------------
-        # Use the stored fee breakdown (snapshot) to avoid re-pricing
+        # SUCCESS: finalize
         stored_breakdown = payment.fee_breakdown
         if not stored_breakdown:
-            # Fallback (should not happen)
             net_rent = self._compute_net_rent(payment)
             calculator = RentCalculator(net_rent, self.property, self.owner)
             stored_breakdown = calculator.get_breakdown()
 
-        # Determine net rent for updating agreement
         net_rent = self._compute_net_rent(payment)
-
-        # Compute final landlord net (proportional if custom amount)
         landlord_net = Decimal(stored_breakdown.get("landlord_net", 0))
         tenant_total_from_breakdown = Decimal(stored_breakdown.get("tenant_total", 0))
         if (
@@ -258,20 +245,18 @@ class PaymentManager:
                 payment.amount, stored_breakdown, tenant_total_from_breakdown
             )
 
-        # Update agreement coverage or installments
         period_start, period_end, months_covered = self._update_agreement(
             payment.amount, net_rent, payment
         )
 
-        # Finalise payment record
         payment.status = "completed"
         payment.period_start = period_start
         payment.period_end = period_end
         payment.months_covered = months_covered
         payment.net_landlord_amount = landlord_net
-        # Keep the stored fee_breakdown (already JSON)
         payment.save()
 
+        # Create owner splits
         property_obj = self.agreement.unit.property
         ownership_records = property_obj.ownership_records.filter(percentage__gt=0)
         total_percent = sum(r.percentage for r in ownership_records)
@@ -289,6 +274,8 @@ class PaymentManager:
         logger.info(
             f"Payment {payment.id} completed and agreement {self.agreement.id} updated"
         )
+        from apps.payments.tasks import generate_receipt_task
+        generate_receipt_task.delay(str(payment.id))
         return {"status": "completed", "payment_id": str(payment.id)}
 
     # --------------------------------------------------
@@ -296,16 +283,12 @@ class PaymentManager:
     # --------------------------------------------------
 
     def _compute_net_rent(self, payment: Payment) -> Decimal:
-        """Compute the net rent (before fees) based on payment details and agreement."""
         if self.plan.mode == "monthly":
-            # Use months_covered from payment (set during initiation)
             months = payment.months_covered
             if months is None:
-                # Fallback: derive from amount (rough)
                 months = round(payment.amount / self.unit.monthly_rent)
             return self.unit.monthly_rent * Decimal(months)
         else:
-            # Yearly: net rent is the remaining amount of the current installment
             status = self.agreement.installment_status
             next_idx = status.get("next_installment_index")
             if next_idx is not None:
@@ -331,7 +314,6 @@ class PaymentManager:
     def _execute_gateway(
         self, amount: Decimal, method: str, phone: str, provider: str
     ) -> Dict:
-        """Call SmobilPay gateway to execute payment, returns ptn (gateway_reference)."""
         try:
             from django.conf import settings
             from apps.payments.gateway_SDKs.gateway_factory import gateway_factory
@@ -344,7 +326,6 @@ class PaymentManager:
                 return {"success": False, "error": "Payment gateway not configured"}
 
             gateway = gateway_factory.create_gateway("smobilpay", gateway_config)
-            print("@@@@@@@@@@@@@@@@@ payment phone", phone)
             intent = gateway.create_payment_intent(
                 amount=amount,
                 currency="XAF",
@@ -366,7 +347,7 @@ class PaymentManager:
                 return {
                     "success": True,
                     "transaction_id": execution.get("gateway_transaction_id"),
-                    "gateway_reference": execution.get("gateway_transaction_id"),  # ptn
+                    "gateway_reference": execution.get("gateway_transaction_id"),
                     "raw_response": execution,
                 }
             else:
@@ -377,7 +358,6 @@ class PaymentManager:
             return {"success": False, "error": str(e)}
 
     def _verify_gateway_payment(self, ptn: str) -> Dict:
-        """Poll SmobilPay gateway for payment status using ptn."""
         try:
             from django.conf import settings
             from apps.payments.gateway_SDKs.gateway_factory import gateway_factory
@@ -409,33 +389,46 @@ class PaymentManager:
 
     def _update_agreement(
         self, amount: Decimal, net_rent: Decimal, payment: Payment = None
-    ) -> Tuple[datetime.date, datetime.date, Optional[Decimal]]:
+    ) -> Tuple[date, date, Optional[Decimal]]:
+        """
+        Update agreement coverage or installments based on payment.
+        Returns (period_start, period_end, months_covered).
+        """
         if self.plan.mode == "monthly":
             months_override = payment.months_covered if payment else None
             return self._update_monthly_coverage(amount, net_rent, months_override)
         else:
             return self._update_yearly_installments(amount, net_rent)
 
+    
     def _update_monthly_coverage(
         self, amount: Decimal, net_rent: Decimal, months_override: Decimal = None
-    ) -> Tuple[datetime.date, datetime.date, Decimal]:
+    ) -> Tuple[date, date, Decimal]:
         """
         Extend coverage by a given number of calendar months.
         Uses relativedelta to handle month‑end and leap years correctly.
+
+        Returns:
+            period_start: first day of coverage (day after previous end or today)
+            period_end: last day of coverage (exactly months later minus one day)
+            months_covered: number of months paid for
         """
-        # Determine number of months (must be integer)
+        # 1. Determine number of months
         if months_override is not None:
             months = int(months_override)
         else:
             monthly_rent = self.unit.monthly_rent
+            if not monthly_rent or monthly_rent <= 0:
+                raise ValueError("Monthly rent must be set and positive.")
             months_raw = amount / monthly_rent
             if months_raw % 1 != 0:
                 raise ValueError(
-                    f"Amount must be exact multiple of monthly rent ({monthly_rent} XAF)."
+                    f"Amount must be exact multiple of monthly rent ({monthly_rent} XAF). "
+                    f"Got {amount} XAF which is {months_raw} months."
                 )
             months = int(months_raw)
 
-        # Validate against allowed terms
+        # 2. Validate allowed terms
         allowed_terms = (
             self.plan.allowed_monthly_terms
             if self.plan.allowed_monthly_terms
@@ -446,66 +439,79 @@ class PaymentManager:
                 f"Payment of {months} month(s) not allowed. Allowed: {allowed_terms}"
             )
 
-        # Determine start date for the new coverage period
+        # 3. Calculate period start
         today = timezone.now().date()
         current_coverage = self.agreement.coverage_end_date
 
         if current_coverage and current_coverage >= today:
-            # Coverage is still active → extend from current end date
-            period_start = current_coverage
-            new_end = current_coverage + relativedelta(months=months)
+            period_start = current_coverage + timedelta(days=1)
         else:
-            # Coverage expired or never set → start from today
             period_start = today
-            new_end = today + relativedelta(months=months)
 
-        # Update agreement
+        # 4. Calculate period end (exactly months later minus one day)
+        period_end = period_start + relativedelta(months=months) - timedelta(days=1)
+
+        # 5. Update agreement
         repo = self._get_repository()
-        repo.update_coverage_end_date(self.agreement.id, new_end)
+        repo.update_coverage_end_date(self.agreement.id, period_end)
 
-        return period_start, new_end, Decimal(months)
-
+        return period_start, period_end, Decimal(months)
     def _update_yearly_installments(
         self, amount: Decimal, net_rent: Decimal
-    ) -> Tuple[datetime.date, datetime.date, None]:
+    ) -> Tuple[date, date, None]:
+        """
+        Apply payment to yearly installments.
+        
+        Returns:
+            period_start: the first day of the current year of the agreement
+            period_end: the last day of that year
+            months_covered: None
+        """
         status = self.agreement.installment_status
-        installments = status["installments"]
+        installments = status.get("installments", [])
         next_idx = status.get("next_installment_index")
+
         if next_idx is None:
             raise ValueError("Agreement already fully paid.")
+        if next_idx >= len(installments):
+            raise ValueError("Invalid installment index.")
 
         due = Decimal(installments[next_idx]["remaining"])
         if not self.plan.allow_custom_amount and amount != due:
-            raise ValueError(f"Must pay full due amount {due} XAF.")
-        if amount > Decimal(status["total_remaining"]):
             raise ValueError(
-                f"Amount exceeds total remaining {status['total_remaining']} XAF."
+                f"Must pay full due amount {due} XAF for installment {next_idx + 1}."
+            )
+        if amount > Decimal(status.get("total_remaining", "0")):
+            raise ValueError(
+                f"Amount exceeds total remaining {status.get('total_remaining', 0)} XAF."
             )
 
+        # Apply payment to installments
         remaining = amount
-        total_paid = Decimal(status["total_paid"])
-        total_remaining = Decimal(status["total_remaining"])
+        total_paid = Decimal(status.get("total_paid", "0"))
+        total_remaining = Decimal(status.get("total_remaining", "0"))
 
         for idx, inst in enumerate(installments):
             if remaining <= 0:
                 break
             if inst["status"] != "pending":
                 continue
-            due = Decimal(inst["remaining"])
-            if remaining >= due:
-                inst["paid_amount"] = str(Decimal(inst["paid_amount"]) + due)
+            inst_due = Decimal(inst["remaining"])
+            if remaining >= inst_due:
+                inst["paid_amount"] = str(Decimal(inst["paid_amount"]) + inst_due)
                 inst["remaining"] = "0"
                 inst["status"] = "paid"
-                remaining -= due
-                total_paid += due
-                total_remaining -= due
+                remaining -= inst_due
+                total_paid += inst_due
+                total_remaining -= inst_due
             else:
                 inst["paid_amount"] = str(Decimal(inst["paid_amount"]) + remaining)
-                inst["remaining"] = str(due - remaining)
+                inst["remaining"] = str(inst_due - remaining)
                 total_paid += remaining
                 total_remaining -= remaining
                 remaining = 0
 
+        # Find next pending installment
         next_idx = None
         for idx, inst in enumerate(installments):
             if inst["status"] == "pending":
@@ -515,16 +521,28 @@ class PaymentManager:
         status["total_paid"] = str(total_paid)
         status["total_remaining"] = str(total_remaining)
         status["next_installment_index"] = next_idx
+
         repo = self._get_repository()
         repo.update_installment_status(self.agreement.id, status)
 
-        period_start = self.agreement.start_date
-        period_end = self.agreement.start_date + timedelta(days=365)
+        # Calculate the current yearly period
+        start_date = self.agreement.start_date
+        today = timezone.now().date()
+        
+        # Compute number of full years elapsed
+        years = relativedelta(today, start_date).years
+        # If today is before the anniversary in the current year, subtract 1
+        # We'll use the same logic as relativedelta: if the month/day is earlier, subtract 1
+        if today < start_date + relativedelta(years=years):
+            years -= 1
+        
+        period_start = start_date + relativedelta(years=years)
+        period_end = period_start + relativedelta(years=1) - timedelta(days=1)
+
         return period_start, period_end, None
 
     def _get_repository(self):
         from apps.payments.repositories import RentalAgreementRepository
-
         return RentalAgreementRepository()
 
     @transaction.atomic
@@ -534,7 +552,6 @@ class PaymentManager:
         """
         Complete a payment based on a webhook event (no gateway polling).
         """
-        # Lock payment
         payment = (
             Payment.objects.select_for_update()
             .select_related("agreement")
@@ -543,23 +560,17 @@ class PaymentManager:
         if payment.status != "pending":
             return {"status": payment.status, "message": "Already processed"}
 
-        # Reconcile amount
         gateway_amount = event.get("amount")
         if gateway_amount and gateway_amount != payment.amount:
-            # Reject if amount mismatch (security)
             payment.status = "failed"
             payment.notes += f"\nWebhook amount mismatch: expected {payment.amount}, got {gateway_amount}"
             payment.save(update_fields=["status", "notes"])
             return {"status": "failed", "message": "Amount mismatch"}
 
-        # Use the existing verification success logic (copy from verify_and_complete after gateway success)
-        # Since we already have the event, we can skip the gateway call and directly finalise.
-        # We'll reuse the internal _finalize_payment method.
         return self._finalize_payment(payment, event)
 
     def _finalize_payment(self, payment: Payment, event: Dict) -> Dict:
         """Common finalisation logic used by verify_and_complete and complete_from_webhook."""
-        # Use stored breakdown snapshot
         stored_breakdown = payment.fee_breakdown
         if not stored_breakdown:
             net_rent = self._compute_net_rent(payment)
@@ -586,7 +597,7 @@ class PaymentManager:
         payment.period_end = period_end
         payment.months_covered = months_covered
         payment.net_landlord_amount = landlord_net
-        payment.gateway_response = event.get("raw", {})  # store raw event
+        payment.gateway_response = event.get("raw", {})
         payment.save()
 
         # Create owner splits
@@ -604,14 +615,10 @@ class PaymentManager:
                 percentage=record.percentage,
             )
 
-        # Ledger entries
         from apps.payments.services import LedgerService
-
         LedgerService().record_payment_ledger(payment)
 
         logger.info(f"Payment {payment.id} completed via webhook")
-
-        from apps.payments.services import LedgerService
-
-        LedgerService().record_payment_ledger(payment)
+        from apps.payments.tasks import generate_receipt_task
+        generate_receipt_task.delay(str(payment.id))
         return {"status": "completed", "payment_id": str(payment.id)}

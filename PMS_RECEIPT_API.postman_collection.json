@@ -1,0 +1,762 @@
+{
+  "info": {
+    "name": "PMS - Receipt & Payment Tests",
+    "description": "Comprehensive test suite for receipt generation, manual payments, rental agreements, and property setup.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "receipt-tests-2026"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "admin_access_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzNzYxNzI0LCJpYXQiOjE3ODI4OTc3MjQsImp0aSI6ImI1OTY3YTQzZjc3NDQzYjVhNzA0Nzk5MzdkZWQwZjNjIiwidXNlcl9pZCI6ImI2MGY1OTRjLTllNjItNGZiYi1iYmNjLWViNjhhZTJlYmU5MyJ9.MZixa9kFmh4AI1pSZAQ2cSROJpm7CAJqdF4nfDFzU7w",
+      "type": "string"
+    },
+    {
+      "key": "landlord_access_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzNzYxNTIyLCJpYXQiOjE3ODI4OTc1MjIsImp0aSI6IjQ5ZDc3YTQ3NWE0ZTRhZWFhN2U2M2NkMGUxY2EzM2VhIiwidXNlcl9pZCI6IjBlZDUwMWI5LWQwNzEtNDUyOC05YzJhLTQ1OGNiNTZkZGQyZCJ9.tDowbfxgMi782Uw-2CVqq2r5csX55nJzCQimMzenUw8",
+      "type": "string"
+    },
+    {
+      "key": "tenant_access_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzNzYxNTgxLCJpYXQiOjE3ODI4OTc1ODEsImp0aSI6IjQ1MTc1MWM0ZThmMDQzM2RhNjA0YzdmOWM3MDQ3YTllIiwidXNlcl9pZCI6ImQyODI0MTU5LWQ3M2ItNGY2Yi1iODAyLWJkM2I1NjJmOTg1OSJ9.Z3jA1msoDJPPJAFcB8hlUNc_PXuPSk8D2M33tqSLVao",
+      "type": "string"
+    },
+    {
+      "key": "ownerId",
+      "value": "",
+      "type": "string"
+    }, 
+    {
+      "key": "tenantId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "propertyId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unitId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentPlanId",
+      "value": "8e126698-d5da-4d6e-ad14-913874c6daa6",
+      "type": "string"
+    },
+    {
+      "key": "agreementId",
+      "value": "cb563eff-ac13-4e41-bdca-1ab56f7f8100",
+      "type": "string"
+    },
+    {
+      "key": "paymentId",
+      "value": "eb5046d8-3b67-44ea-a45d-aec8709965bf",
+      "type": "string"
+    },
+    {
+      "key": "adminEmail",
+      "value": "miclemabasie3@gmail.com",
+      "type": "string"
+    },
+    {
+      "key": "adminPassword",
+      "value": "admin123",
+      "type": "string"
+    },
+    {
+      "key": "landlordEmail",
+      "value": "mubakustyle@gmail.com",
+      "type": "string"
+    },
+    {
+      "key": "landlordPassword",
+      "value": "strongpassword123",
+      "type": "string"
+    },
+    {
+      "key": "tenantEmail",
+      "value": "miclemabasie3@gmail.com",
+      "type": "string"
+    },
+    {
+      "key": "tenantPassword",
+      "value": "strongpassword123",
+      "type": "string"
+    },
+    {
+      "key": "landlordUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tenantUserId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0️⃣ Authentication",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/jwt/create/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "jwt", "create"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response has access token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.access).to.be.a('string');",
+                  "    pm.expect(jsonData.refresh).to.be.a('string');",
+                  "    pm.environment.set('adminToken', jsonData.access);",
+                  "    pm.environment.set('refreshToken', jsonData.refresh);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as Landlord",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{landlordEmail}}\",\n  \"password\": \"{{landlordPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/jwt/create/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "jwt", "create"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response has access token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.access).to.be.a('string');",
+                  "    pm.environment.set('landlordToken', jsonData.access);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as Tenant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{tenantEmail}}\",\n  \"password\": \"{{tenantPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/jwt/create/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "jwt", "create"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response has access token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.access).to.be.a('string');",
+                  "    pm.environment.set('tenantToken', jsonData.access);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1️⃣ Setup: Create Owner, Property, Unit, Plan, Tenant, Agreement",
+      "item": [
+        {
+          "name": "Create Owner (if not exists via Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{landlordUserId}}\",\n  \"preferred_payout_method\": \"mtn_momo\",\n  \"mobile_money_number\": \"+237670000000\",\n  \"tax_id\": \"NIU123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/properties/owners/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "properties", "owners"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Owner created', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('pkid');",
+                  "    pm.environment.set('ownerId', jsonData.pkid);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Property",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlordToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Receipt Test Property\",\n  \"property_type\": \"apartment\",\n  \"description\": \"Property for receipt testing\",\n  \"address_line1\": \"123 Test Street\",\n  \"city\": \"Douala\",\n  \"country\": \"CM\",\n  \"starting_amount\": 50000,\n  \"top_amount\": 200000,\n  \"is_active\": true,\n  \"amenities\": [\"wifi\", \"parking\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/properties/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "properties"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Property created', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.environment.set('propertyId', jsonData.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Unit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlordToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"property_id\": \"{{propertyId}}\",\n  \"unit_number\": \"A101\",\n  \"unit_type\": \"studio\",\n  \"default_rent_amount\": 150000,\n  \"default_security_deposit\": 50000,\n  \"status\": \"vacant\",\n  \"bedrooms\": 1,\n  \"bathrooms\": 1,\n  \"rent_duration_type\": \"monthly\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/properties/units/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "properties", "units"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Unit created', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.environment.set('unitId', jsonData.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Payment Plan (Monthly)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlordToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Monthly Plan\",\n  \"mode\": \"monthly\",\n  \"allowed_monthly_terms\": [1, 3, 6],\n  \"max_months\": 12,\n  \"allow_custom_amount\": true,\n  \"amount_step\": 10,\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/payment-plans/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payments", "payment-plans"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Payment plan created', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.environment.set('paymentPlanId', jsonData.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Tenant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlordToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{tenantUserId}}\",\n  \"id_number\": \"CNI123456789\",\n  \"emergency_contact_name\": \"Jane Doe\",\n  \"emergency_contact_phone\": \"+237678000000\",\n  \"is_primary\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tenants"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Tenant created', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.environment.set('tenantId', jsonData.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Rental Agreement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlordToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"unit_id\": \"{{unitId}}\",\n  \"tenant_id\": \"{{tenantId}}\",\n  \"payment_plan_id\": \"{{paymentPlanId}}\",\n  \"terms_text\": \"Standard rental terms for testing.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/agreements/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payments", "agreements"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Agreement created', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.environment.set('agreementId', jsonData.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2️⃣ Payments",
+      "item": [
+        {
+          "name": "Record Manual Payment (Cash) - triggers receipt generation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlordToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 150000,\n  \"payment_method\": \"cash\",\n  \"payment_date\": \"2026-07-01\",\n  \"notes\": \"Test manual payment for receipt\",\n  \"pin\": \"1234\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/agreements/{{agreementId}}/manual-payment/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payments", "agreements", "{{agreementId}}", "manual-payment"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Payment recorded', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData.status).to.equal('completed');",
+                  "    pm.environment.set('paymentId', jsonData.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Payment Status (optional check)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlordToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/verify/{{paymentId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payments", "verify", "{{paymentId}}"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Payment status is completed', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.equal('completed');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3️⃣ Receipts",
+      "item": [
+        {
+          "name": "Get Receipt by Payment ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlordToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/receipts/{{paymentId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payments", "receipts", "{{paymentId}}"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Receipt data structure is valid', function () {",
+                  "    const data = pm.response.json();",
+                  "    pm.expect(data).to.be.an('object');",
+                  "    pm.expect(data).to.have.property('payment');",
+                  "    pm.expect(data).to.have.property('tenant');",
+                  "    pm.expect(data).to.have.property('property');",
+                  "    pm.expect(data).to.have.property('unit');",
+                  "    pm.expect(data).to.have.property('landlord');",
+                  "    pm.expect(data).to.have.property('template');",
+                  "});",
+                  "pm.test('Payment fields exist', function () {",
+                  "    const data = pm.response.json();",
+                  "    const payment = data.payment;",
+                  "    pm.expect(payment).to.have.property('amount');",
+                  "    pm.expect(payment).to.have.property('payment_date');",
+                  "    pm.expect(payment).to.have.property('payment_method');",
+                  "    pm.expect(payment).to.have.property('status');",
+                  "    pm.expect(payment).to.have.property('fee_breakdown');",
+                  "});",
+                  "pm.test('Tenant fields exist', function () {",
+                  "    const data = pm.response.json();",
+                  "    const tenant = data.tenant;",
+                  "    pm.expect(tenant).to.have.property('name');",
+                  "    pm.expect(tenant).to.have.property('email');",
+                  "});",
+                  "pm.test('Property fields exist', function () {",
+                  "    const data = pm.response.json();",
+                  "    const property = data.property;",
+                  "    pm.expect(property).to.have.property('name');",
+                  "    pm.expect(property).to.have.property('address');",
+                  "});",
+                  "pm.test('Template fields exist', function () {",
+                  "    const data = pm.response.json();",
+                  "    const template = data.template;",
+                  "    pm.expect(template).to.have.property('layout');",
+                  "    pm.expect(template).to.have.property('primary_color');",
+                  "    pm.expect(template).to.have.property('agency_name');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Receipt as Tenant (should succeed)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tenantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/receipts/{{paymentId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payments", "receipts", "{{paymentId}}"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 (tenant access)', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Receipt data includes tenant info', function () {",
+                  "    const data = pm.response.json();",
+                  "    pm.expect(data.tenant.name).to.equal('{{tenantEmail}}');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Receipt with Invalid Payment ID (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlordToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/receipts/00000000-0000-0000-0000-000000000000/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payments", "receipts", "00000000-0000-0000-0000-000000000000"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 404 for invalid payment ID', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unauthorized Access (no token) - 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/receipts/{{paymentId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payments", "receipts", "{{paymentId}}"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401 (Unauthorized)', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4️⃣ Cleanup (Optional)",
+      "item": [
+        {
+          "name": "Delete Agreement (if needed)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlordToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/agreements/{{agreementId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payments", "agreements", "{{agreementId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
