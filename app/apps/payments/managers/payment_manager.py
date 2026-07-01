@@ -289,6 +289,8 @@ class PaymentManager:
         logger.info(
             f"Payment {payment.id} completed and agreement {self.agreement.id} updated"
         )
+        from apps.payments.tasks import generate_receipt_task
+        generate_receipt_task.delay(str(payment.id))
         return {"status": "completed", "payment_id": str(payment.id)}
 
     # --------------------------------------------------
