@@ -143,6 +143,8 @@ def profile_update(request):
         profile.city = profile_data.get("city", profile.city)
         profile.address = profile_data.get("address", profile.address)
 
+
+
         if "profile_photo" in profile_data:
             profile.profile_photo = profile_data["profile_photo"]
             logger.state(

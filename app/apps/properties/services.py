@@ -99,6 +99,8 @@ def can_add_unit(property_obj, owner):
             )
     return True, ""
 
+    
+
 
 # ---------------------------------------------------
 # Owner Service
@@ -186,6 +188,7 @@ class OwnerService(BaseService[Owner]):
     def validate_payment_pin(self, owner: Owner, raw_pin: str) -> bool:
         """Validate the owner's payment PIN."""
         return self.repository.validate_payment_pin(owner, raw_pin)
+
 
 # ----------------------------------------------------------------------
 # Manager Service

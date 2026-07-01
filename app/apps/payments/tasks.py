@@ -1,7 +1,7 @@
 from celery import shared_task
 from apps.payments.services import DisbursementService
 from apps.payments.models import Payment
-from apps.payments.receipt_service import ReceiptService
+
 from apps.payments.models import Receipt
 from apps.notifications.tasks import send_notification
 from django.conf import settings
@@ -37,6 +37,8 @@ def generate_receipt_task(self, payment_id: str):
             "status": "pending",
         }
     )
+
+    from apps.payments.receipt_service import ReceiptService
 
     service = ReceiptService()
     try:

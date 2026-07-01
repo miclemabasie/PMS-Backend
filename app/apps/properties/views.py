@@ -900,3 +900,38 @@ class TermTemplateDetailView(APIView):
         self.check_object_permissions(request, template.property)
         self.service.delete_template(pk)
         return Response(status=204)
+
+
+class OwnerSetPinView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = OwnerService()
+
+    def post(self, request):
+        """Set or update the payment PIN for the authenticated owner."""
+        owner = self.service.get_owner_for_user(request.user)
+        if not owner:
+            return Response(
+                {"detail": "Owner profile not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        pin = request.data.get("pin")
+        if not pin:
+            return Response(
+                {"detail": "PIN is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not pin.isdigit() or len(pin) != 4:
+            return Response(
+                {"detail": "PIN must be exactly 4 digits."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        owner.set_payment_pin(pin)
+        return Response(
+            {"detail": "Payment PIN updated successfully."},
+            status=status.HTTP_200_OK,
+        )

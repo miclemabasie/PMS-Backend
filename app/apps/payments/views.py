@@ -11,7 +11,9 @@ from django.shortcuts import get_object_or_404
 from apps.properties.services import UnitService
 from apps.tenants.models import Tenant
 
-from .services import PaymentPlanService, RentalAgreementService, PaymentService, AuditService, SubscriptionPlanService, ReceiptService
+from .services import PaymentPlanService, RentalAgreementService, PaymentService, AuditService, SubscriptionPlanService
+
+from apps.payments.receipt_service import ReceiptService
 
 
 from .serializers import (
