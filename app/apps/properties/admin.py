@@ -10,8 +10,10 @@ from .models import (
     UnitImage,
     OwnerPaymentConfig,
     PropertyPaymentConfig,
+    TermTemplate,
 )
 
+admin.site.register(TermTemplate)
 
 # ============================================================
 # Inlines
