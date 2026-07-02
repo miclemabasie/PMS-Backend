@@ -114,7 +114,6 @@ def send_receipt_email(self, payment_id: str, recipient_email: str, tenant_name:
             raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
 
 
-
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_payment_recorded_email(self, payment_id: str):
     """
@@ -135,6 +134,14 @@ def send_payment_recorded_email(self, payment_id: str):
 
     property_obj = payment.agreement.unit.property
     unit = payment.agreement.unit
+
+    # Try to get receipt number if receipt exists, else use payment id
+    try:
+        receipt = Receipt.objects.get(payment=payment)
+        receipt_number = receipt.receipt_number
+    except Receipt.DoesNotExist:
+        receipt_number = payment.id[:8]
+
     receipt_url = f"{settings.FRONTEND_URL}/receipts/{payment_id}/"
 
     # Format period
@@ -145,11 +152,14 @@ def send_payment_recorded_email(self, payment_id: str):
     if period_start and period_end:
         start_str = period_start.strftime("%d %b %Y")
         end_str = period_end.strftime("%d %b %Y")
+        # If it's a full month, show month name
         if period_start.day == 1 and period_end.day == period_end.replace(day=1, month=period_end.month+1, year=period_end.year).day - 1:
             period_display = period_start.strftime("%B %Y")
         else:
             period_display = f"{start_str} – {end_str}"
     else:
+        start_str = "N/A"
+        end_str = "N/A"
         period_display = "N/A"
 
     payment_method_display = dict(Payment._meta.get_field('payment_method').choices).get(payment.payment_method, payment.payment_method)
@@ -157,15 +167,15 @@ def send_payment_recorded_email(self, payment_id: str):
     send_notification.delay(
         channel="email",
         recipient=tenant_email,
-        subject=f"Payment Recorded – {payment.receipt_number or payment.id[:8]}",
+        subject=f"Payment Recorded – {receipt_number}",
         template_name="emails/payments/payment_recorded.html",
         context={
             "tenant_name": tenant_name,
             "amount": format_currency(payment.amount),
             "property_name": property_obj.name,
             "unit_number": unit.unit_number,
-            "period_start": start_str if period_start else "N/A",
-            "period_end": end_str if period_end else "N/A",
+            "period_start": start_str,
+            "period_end": end_str,
             "months_covered": months_covered,
             "payment_method": payment_method_display,
             "payment_date": payment.payment_date.strftime("%d %b %Y"),
