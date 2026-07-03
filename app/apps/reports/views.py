@@ -45,73 +45,7 @@ class TemplateConfigViewSet(viewsets.ModelViewSet):
 # ------------------------------------------------------------
 # Financial Reports
 # ------------------------------------------------------------
-class PropertyFinancialSummaryView(APIView):
-    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.service = FinancialReportService()
-
-    def get(self, request, property_id):
-        property_obj = get_object_or_404(Property, id=property_id)
-        self.check_object_permissions(request, property_obj)
-
-        start = request.query_params.get("start")
-        end = request.query_params.get("end")
-        group_by = request.query_params.get("group_by", "month")  # month or day
-
-        if start:
-            start_date = timezone.make_aware(datetime.strptime(start, "%Y-%m-%d"))
-        else:
-            start_date = None
-
-        if end:
-            end_date = timezone.make_aware(
-                datetime.strptime(end, "%Y-%m-%d")
-                + timedelta(days=1)
-                - timedelta(seconds=1)
-            )
-        else:
-            end_date = None
-
-        data = self.service.get_property_summary(
-            property_id, start_date, end_date, group_by
-        )
-        return Response(data)
-
-
-class OwnerOverviewView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.service = FinancialReportService()
-        self.owner_service = OwnerService()
-
-    def get(self, request):
-        owner = self.owner_service.get_owner_for_user(request.user)
-        if not owner:
-            return Response({"detail": "No landlord profile associated"}, status=404)
-
-        start = request.query_params.get("start")
-        end = request.query_params.get("end")
-
-        if start:
-            start_date = timezone.make_aware(datetime.strptime(start, "%Y-%m-%d"))
-        else:
-            start_date = None
-
-        if end:
-            end_date = timezone.make_aware(
-                datetime.strptime(end, "%Y-%m-%d")
-                + timedelta(days=1)
-                - timedelta(seconds=1)
-            )
-        else:
-            end_date = None
-
-        data = self.service.get_owner_overview(str(owner.pkid), start_date, end_date)
-        return Response(data)
 
 
 class ReceiptDataView(APIView):
@@ -145,31 +79,11 @@ class ReceiptDataView(APIView):
         data = self.service.get_receipt_data(str(payment.id))
         return Response(data)
 
-
-class MaintenanceSummaryView(APIView):
-    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.service = FinancialReportService()
-
-    def get(self, request, property_id):
-        property_obj = get_object_or_404(Property, id=property_id)
-        self.check_object_permissions(request, property_obj)
-
-        start = request.query_params.get("start")
-        end = request.query_params.get("end")
-
-        start_date = datetime.fromisoformat(start) if start else None
-        end_date = datetime.fromisoformat(end) if end else None
-
-        data = self.service.get_maintenance_summary(property_id, start_date, end_date)
-        return Response(data)
-
-
 class ExpenseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
     serializer_class = ExpenseSerializer
+
+    lookup_field = "id"
 
     def get_queryset(self):
         user = self.request.user
@@ -187,14 +101,9 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         return Expense.objects.none()
 
 
-class MaintenanceAnalyticsView(APIView):
-    """
-    GET /api/v1/reports/maintenance/analytics/<property_id>/
-    Returns detailed maintenance costs by vendor, priority, and monthly trend.
-    """
 
+class MaintenanceSummaryView(APIView):
     permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.service = FinancialReportService()
@@ -208,5 +117,65 @@ class MaintenanceAnalyticsView(APIView):
         start_date = datetime.fromisoformat(start) if start else None
         end_date = datetime.fromisoformat(end) if end else None
 
-        data = self.service.get_maintenance_analytics(property_id, start_date, end_date)
+        data = self.service.get_maintenance_summary(property_obj.pkid, start_date, end_date)
+        return Response(data)
+
+
+class MaintenanceAnalyticsView(APIView):
+    permission_classes = [IsAuthenticated, IsOwnerOrManagerOrSuperAdmin]
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = FinancialReportService()
+
+    def get(self, request, property_id):
+        property_obj = get_object_or_404(Property, id=property_id)
+        self.check_object_permissions(request, property_obj)
+
+        start = request.query_params.get("start")
+        end = request.query_params.get("end")
+        start_date = datetime.fromisoformat(start) if start else None
+        end_date = datetime.fromisoformat(end) if end else None
+
+        data = self.service.get_maintenance_analytics(property_obj.pkid, start_date, end_date)
+        return Response(data)
+
+class PropertyFinancialSummaryView(APIView):
+    def get(self, request, property_id):
+        property_obj = get_object_or_404(Property, id=property_id)
+        self.check_object_permissions(request, property_obj)
+        
+        start = request.query_params.get("start")
+        end = request.query_params.get("end")
+        group_by = request.query_params.get("group_by", "month")
+        
+        if start:
+            start_date = timezone.make_aware(datetime.strptime(start, "%Y-%m-%d"))
+        else:
+            start_date = None
+        if end:
+            end_date = timezone.make_aware(datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1) - timedelta(seconds=1))
+        else:
+            end_date = None
+
+        service = FinancialReportService()
+        data = service.get_property_summary(property_obj.pkid, start_date, end_date, group_by)
+        
+        return Response(data)
+
+class OwnerOverviewView(APIView):
+    permission_classes = [IsAuthenticated]
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.service = FinancialReportService()
+        self.owner_service = OwnerService()
+
+    def get(self, request):
+        owner = self.owner_service.get_owner_for_user(request.user)
+        if not owner:
+            return Response({"detail": "No landlord profile associated"}, status=404)
+        start = request.query_params.get("start")
+        end = request.query_params.get("end")
+        start_date = timezone.make_aware(datetime.strptime(start, "%Y-%m-%d")) if start else None
+        end_date = timezone.make_aware(datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1) - timedelta(seconds=1)) if end else None
+        data = self.service.get_owner_overview(owner.pkid, start_date, end_date)
         return Response(data)

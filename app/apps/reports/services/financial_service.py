@@ -1,9 +1,12 @@
 from decimal import Decimal
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
-from django.db.models import Sum, Count, Q, F, DecimalField
+from django.db.models import Sum, Count, Q, F, DecimalField, Value
 from django.db.models.functions import TruncMonth, TruncDate
 from django.utils import timezone
+from django.db.models.fields.json import KeyTextTransform
+from django.db.models.functions import Cast, Coalesce
+
 from apps.payments.models import Payment, RentalAgreement
 from apps.reports.models import Expense
 from apps.properties.models import Property, Unit, Owner
@@ -11,9 +14,6 @@ from apps.maintenance.models import MaintenanceRequest
 from apps.core.base_service import BaseService
 from apps.payments.repositories import PaymentRepository, RentalAgreementRepository
 from apps.reports.repositories import ExpenseRepository
-from django.db.models import F, Value, CharField, DecimalField
-from django.db.models.functions import Cast, Coalesce
-from django.db.models.fields.json import KeyTextTransform
 
 
 class FinancialReportService:
@@ -26,7 +26,7 @@ class FinancialReportService:
 
     def get_property_summary(
         self,
-        property_id: str,
+        property_pkid: int,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         group_by: str = "month",
@@ -34,28 +34,30 @@ class FinancialReportService:
         """
         Returns financial summary for a property over a date range.
         group_by: "month" (default) or "day"
+        Uses property_pkid (integer primary key) for efficient queries.
         """
         if not start_date:
             start_date = timezone.now() - timedelta(days=365)
         if not end_date:
             end_date = timezone.now()
 
-        # Ensure property exists and user has permission (handled in view)
-        # 1. Income from completed payments
+        # 1. Income from completed payments for this property (using pkid)
         income_qs = Payment.objects.filter(
-            agreement__unit__property__id=property_id,  # note __id at the end
+            agreement__unit__property__pkid=property_pkid,
             status="completed",
             payment_date__range=[start_date, end_date],
         )
-        # 2. Expenses
+
+        # 2. Expenses for this property (using pkid)
         expense_qs = Expense.objects.filter(
-            property__id=property_id,  # instead of property_id
+            property__pkid=property_pkid,
             expense_date__range=[start_date, end_date],
         )
 
-        # 3. Maintenance requests (costs)
+        # 3. Maintenance requests (costs) for this property
         maintenance_qs = MaintenanceRequest.objects.filter(
-            unit__property__id=property_id, created_at__range=[start_date, end_date]
+            unit__property__pkid=property_pkid,
+            created_at__range=[start_date, end_date],
         )
 
         # Grouping logic
@@ -68,7 +70,6 @@ class FinancialReportService:
             trunc_func = TruncDate
 
         # Aggregate income by period
-
         income_by_period = (
             income_qs.annotate(
                 period=trunc_func(date_field_income),
@@ -77,18 +78,14 @@ class FinancialReportService:
                         KeyTextTransform("platform_fee", "fee_breakdown"),
                         output_field=DecimalField(max_digits=10, decimal_places=0),
                     ),
-                    Value(
-                        0, output_field=DecimalField(max_digits=10, decimal_places=0)
-                    ),
+                    Value(0, output_field=DecimalField(max_digits=10, decimal_places=0)),
                 ),
                 gateway_fee_val=Coalesce(
                     Cast(
                         KeyTextTransform("gateway_fee", "fee_breakdown"),
                         output_field=DecimalField(max_digits=10, decimal_places=0),
                     ),
-                    Value(
-                        0, output_field=DecimalField(max_digits=10, decimal_places=0)
-                    ),
+                    Value(0, output_field=DecimalField(max_digits=10, decimal_places=0)),
                 ),
             )
             .values("period")
@@ -108,7 +105,7 @@ class FinancialReportService:
             .order_by("period")
         )
 
-        # Aggregate maintenance costs (approved/completed)
+        # Aggregate maintenance costs by period
         maint_by_period = (
             maintenance_qs.filter(
                 status__in=["completed", "in_progress"], actual_cost__isnull=False
@@ -129,30 +126,15 @@ class FinancialReportService:
 
         for period in periods:
             period_key = period.isoformat()[:10]  # YYYY-MM-DD or YYYY-MM
-            # Income
             inc = next(
-                (
-                    i
-                    for i in income_by_period
-                    if i["period"].isoformat()[:10] == period_key
-                ),
+                (i for i in income_by_period if i["period"].isoformat()[:10] == period_key),
                 None,
             )
             income_val = float(inc["total"]) if inc else 0.0
-            # Expenses
-            exp = [
-                e
-                for e in expenses_by_period
-                if e["period"].isoformat()[:10] == period_key
-            ]
+            exp = [e for e in expenses_by_period if e["period"].isoformat()[:10] == period_key]
             expense_val = sum(float(e["total"]) for e in exp)
-            # Maintenance
             maint = next(
-                (
-                    m
-                    for m in maint_by_period
-                    if m["period"].isoformat()[:10] == period_key
-                ),
+                (m for m in maint_by_period if m["period"].isoformat()[:10] == period_key),
                 None,
             )
             maint_val = float(maint["total_cost"]) if maint else 0.0
@@ -163,23 +145,18 @@ class FinancialReportService:
             net_series.append(income_val - expense_val - maint_val)
 
         # Compute occupancy
-        units = Unit.objects.filter(property__id=property_id)
-        unit_ids = list(units.values_list("id", flat=True))
-        occupancy_series = self._compute_occupancy_series(
-            unit_ids, start_date, end_date, group_by
-        )
+        units = Unit.objects.filter(property__pkid=property_pkid)
+        unit_ids = list(units.values_list("pkid", flat=True))
+        occupancy_series = self._compute_occupancy_series(unit_ids, start_date, end_date, group_by)
 
         return {
-            "property_id": str(property_id),
+            "property_pkid": property_pkid,
             "period": {
                 "start": start_date.isoformat(),
                 "end": end_date.isoformat(),
                 "group_by": group_by,
             },
-            "labels": [
-                p.strftime("%b %Y") if group_by == "month" else p.strftime("%Y-%m-%d")
-                for p in periods
-            ],
+            "labels": [p.strftime("%b %Y") if group_by == "month" else p.strftime("%Y-%m-%d") for p in periods],
             "income": income_series,
             "expenses": expense_series,
             "maintenance_costs": maint_series,
@@ -189,45 +166,39 @@ class FinancialReportService:
 
     def get_owner_overview(
         self,
-        owner_id: str,
+        owner_pkid: int,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """Aggregate across all properties owned by a landlord."""
-        from apps.properties.models import PropertyOwnership
-
-        owned_properties = Property.objects.filter(ownership_records__owner_id=owner_id)
-        property_ids = list(owned_properties.values_list("id", flat=True))
+        owned_properties = Property.objects.filter(ownership_records__owner__pkid=owner_pkid)
+        property_pkids = list(owned_properties.values_list("pkid", flat=True))
 
         total_income = 0
         total_expenses = 0
         total_maintenance = 0
         total_net = 0
-
         property_details = []
-        for prop_id in property_ids:
-            summary = self.get_property_summary(
-                prop_id, start_date, end_date, group_by="month"
-            )
-            # Sum totals across all periods
+
+        for pkid in property_pkids:
+            summary = self.get_property_summary(pkid, start_date, end_date, group_by="month")
             total_income += sum(summary["income"])
             total_expenses += sum(summary["expenses"])
             total_maintenance += sum(summary["maintenance_costs"])
             total_net += sum(summary["net"])
 
-            property_details.append(
-                {
-                    "property_id": prop_id,
-                    "name": Property.objects.get(id=prop_id).name,
-                    "total_income": sum(summary["income"]),
-                    "total_expenses": sum(summary["expenses"]),
-                    "total_maintenance": sum(summary["maintenance_costs"]),
-                    "net": sum(summary["net"]),
-                }
-            )
+            property_obj = Property.objects.get(pkid=pkid)
+            property_details.append({
+                "property_pkid": pkid,
+                "name": property_obj.name,
+                "total_income": sum(summary["income"]),
+                "total_expenses": sum(summary["expenses"]),
+                "total_maintenance": sum(summary["maintenance_costs"]),
+                "net": sum(summary["net"]),
+            })
 
         return {
-            "owner_id": str(owner_id),
+            "owner_pkid": owner_pkid,
             "overall": {
                 "total_income": total_income,
                 "total_expenses": total_expenses,
@@ -238,22 +209,21 @@ class FinancialReportService:
         }
 
     def get_receipt_data(self, payment_id: str) -> Dict[str, Any]:
-        """Returns complete data for a single payment receipt, including template config."""
+        """Returns complete data for a single payment receipt."""
         payment = Payment.objects.select_related(
             "agreement__unit__property", "agreement__tenant__user"
         ).get(id=payment_id)
 
         agreement = payment.agreement
         unit = agreement.unit
-        property = unit.property
+        property_obj = unit.property
         tenant = agreement.tenant
-        owner = property.owners.first()  # Primary owner
+        owner = property_obj.owners.first()
 
         phone = None
         if hasattr(tenant.user, "profile") and tenant.user.profile.phone_number:
             phone = str(tenant.user.profile.phone_number)
 
-        # Get landlord's receipt template
         from apps.reports.models import TemplateConfig
 
         try:
@@ -271,35 +241,21 @@ class FinancialReportService:
                 "method": payment.payment_method,
                 "status": payment.status,
                 "transaction_id": payment.transaction_id,
-                "fee_breakdown": payment.fee_breakdown,  # already JSON
-                "net_landlord_amount": (
-                    float(payment.net_landlord_amount)
-                    if payment.net_landlord_amount
-                    else None
-                ),
-                "period_start": (
-                    payment.period_start.isoformat() if payment.period_start else None
-                ),
-                "period_end": (
-                    payment.period_end.isoformat() if payment.period_end else None
-                ),
-                "months_covered": (
-                    float(payment.months_covered) if payment.months_covered else None
-                ),
+                "fee_breakdown": payment.fee_breakdown,
+                "net_landlord_amount": float(payment.net_landlord_amount) if payment.net_landlord_amount else None,
+                "period_start": payment.period_start.isoformat() if payment.period_start else None,
+                "period_end": payment.period_end.isoformat() if payment.period_end else None,
+                "months_covered": float(payment.months_covered) if payment.months_covered else None,
             },
             "tenant": {
                 "name": tenant.user.get_full_name(),
                 "email": tenant.user.email,
-                "phone": (
-                    str(tenant.user.profile.phone_number)
-                    if hasattr(tenant.user, "profile")
-                    else None
-                ),
+                "phone": phone,
             },
             "property": {
-                "id": str(property.id),
-                "name": property.name,
-                "address": f"{property.address_line1}, {property.city}, {property.country.name}",
+                "id": str(property_obj.id),
+                "name": property_obj.name,
+                "address": f"{property_obj.address_line1}, {property_obj.city}, {property_obj.country.name}",
             },
             "unit": {
                 "number": unit.unit_number,
@@ -308,25 +264,15 @@ class FinancialReportService:
             "landlord": {
                 "name": owner.user.get_full_name(),
                 "email": owner.user.email,
-                "phone": (
-                    str(owner.mobile_money_number)
-                    if owner.mobile_money_number
-                    else None
-                ),
+                "phone": str(owner.mobile_money_number) if owner.mobile_money_number else None,
             },
             "template": {
                 "layout": template.selected_layout if template else 1,
                 "primary_color": template.primary_color if template else "#1E3A8A",
                 "secondary_color": template.secondary_color if template else "#F59E0B",
-                "agency_name": (
-                    template.agency_name if template else owner.user.get_full_name()
-                ),
+                "agency_name": template.agency_name if template else owner.user.get_full_name(),
                 "agency_address": template.agency_address if template else "",
-                "agency_phone": (
-                    template.agency_phone
-                    if template
-                    else str(owner.mobile_money_number or "")
-                ),
+                "agency_phone": template.agency_phone if template else str(owner.mobile_money_number or ""),
                 "agency_email": template.agency_email if template else owner.user.email,
                 "logo_url": template.logo.url if template and template.logo else None,
                 "footer_text": template.footer_text if template else "",
@@ -336,42 +282,36 @@ class FinancialReportService:
 
     def get_maintenance_summary(
         self,
-        property_id: str,
+        property_pkid: int,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
-        """Detailed maintenance analytics for a property."""
+        """Detailed maintenance analytics for a property using pkid."""
         if not start_date:
             start_date = timezone.now() - timedelta(days=365)
         if not end_date:
             end_date = timezone.now()
 
-        # Maintenance requests in range
         requests = MaintenanceRequest.objects.filter(
-            unit__property_id=property_id, created_at__range=[start_date, end_date]
+            unit__property__pkid=property_pkid,
+            created_at__range=[start_date, end_date],
         )
 
         total_estimated = requests.aggregate(total=Sum("estimated_cost"))["total"] or 0
         total_actual = requests.aggregate(total=Sum("actual_cost"))["total"] or 0
 
-        # By status
         by_status = requests.values("status").annotate(
             count=Count("id"), total_actual=Sum("actual_cost")
         )
-
-        # By priority
         by_priority = requests.values("priority").annotate(
             count=Count("id"), total_actual=Sum("actual_cost")
         )
-
-        # By vendor
         by_vendor = requests.values(
             "assigned_vendor__company_name", "assigned_vendor__contact_name"
         ).annotate(count=Count("id"), total_actual=Sum("actual_cost"))
 
-        # Expenses linked to maintenance (separate from actual_cost)
         expenses = Expense.objects.filter(
-            property_id=property_id,
+            property__pkid=property_pkid,
             expense_date__range=[start_date, end_date],
             category="maintenance",
         )
@@ -387,104 +327,38 @@ class FinancialReportService:
                 "total_estimated_cost": float(total_estimated),
                 "total_actual_cost": float(total_actual),
                 "total_extra_expenses": float(total_expenses),
-                "average_cost_per_request": (
-                    float(total_actual / requests.count())
-                    if requests.count() > 0
-                    else 0
-                ),
+                "average_cost_per_request": float(total_actual / requests.count()) if requests.count() > 0 else 0,
             },
             "by_status": list(by_status),
             "by_priority": list(by_priority),
             "by_vendor": list(by_vendor),
         }
 
-    def _generate_periods(
-        self, start: datetime, end: datetime, group_by: str
-    ) -> List[datetime]:
-        """Generate list of period start dates (first of month or day)."""
-        periods = []
-        if group_by == "month":
-            current = start.replace(day=1)
-            while current <= end:
-                periods.append(current)
-                # next month
-                if current.month == 12:
-                    current = current.replace(year=current.year + 1, month=1)
-                else:
-                    current = current.replace(month=current.month + 1)
-        else:  # day
-            current = start
-            while current <= end:
-                periods.append(current)
-                current += timedelta(days=1)
-        return periods
-
-    def _compute_occupancy_series(
-        self, unit_ids: List[str], start: datetime, end: datetime, group_by: str
-    ) -> List[float]:
-        """Compute occupancy percentage per period based on rental agreements."""
-        # For simplicity, use active agreements and their coverage_end_date
-        # A unit is occupied if there is an active agreement covering that day.
-        # This is a placeholder; full implementation would iterate over days and check coverage.
-        periods = self._generate_periods(start, end, group_by)
-        occupancy = []
-        for period in periods:
-            if group_by == "month":
-                month_start = period
-                month_end = (period.replace(day=28) + timedelta(days=4)).replace(
-                    day=1
-                ) - timedelta(days=1)
-            else:
-                month_start = period
-                month_end = period
-            # count occupied days sum across units
-            total_days = (month_end - month_start).days + 1
-            occupied_days = 0
-            for unit_id in unit_ids:
-                # Get agreements that were active during this period
-                agreements = RentalAgreement.objects.filter(
-                    unit_id=unit_id,
-                    is_active=True,
-                    start_date__lte=month_end,
-                    coverage_end_date__gte=month_start,
-                )
-                if agreements.exists():
-                    # For simplicity, if any agreement covers any day of period, consider whole period occupied
-                    occupied_days += total_days
-            occupancy_percent = (
-                (occupied_days / (len(unit_ids) * total_days)) * 100 if unit_ids else 0
-            )
-            occupancy.append(round(occupancy_percent, 2))
-        return occupancy
-
     def get_maintenance_analytics(
         self,
-        property_id: str,
+        property_pkid: int,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
-        """Return advanced maintenance analytics including costs by category, vendor, and status over time."""
+        """Advanced maintenance analytics for a property using pkid."""
         if not start_date:
             start_date = timezone.now() - timedelta(days=365)
         if not end_date:
             end_date = timezone.now()
 
-        # Expenses categorized as maintenance
         expenses = Expense.objects.filter(
-            property__id=property_id,
+            property__pkid=property_pkid,
             category="maintenance",
             expense_date__range=[start_date, end_date],
         )
         total_expenses = expenses.aggregate(total=Sum("amount"))["total"] or 0
 
-        # Group by vendor
         by_vendor = (
             expenses.values("vendor__company_name", "vendor__contact_name")
             .annotate(total=Sum("amount"), count=Count("id"))
             .order_by("-total")
         )
 
-        # Group by month (time series)
         monthly = (
             expenses.annotate(month=TruncMonth("expense_date"))
             .values("month")
@@ -492,9 +366,8 @@ class FinancialReportService:
             .order_by("month")
         )
 
-        # Maintenance requests with actual costs
         requests = MaintenanceRequest.objects.filter(
-            unit__property__id=property_id,
+            unit__property__pkid=property_pkid,
             status="completed",
             completed_at__range=[start_date, end_date],
         ).select_related("assigned_vendor")
@@ -510,8 +383,49 @@ class FinancialReportService:
             "total_maintenance_actual": float(total_actual),
             "by_vendor": list(by_vendor),
             "by_priority": list(by_priority),
-            "monthly_trend": [
-                {"month": m["month"].strftime("%Y-%m"), "amount": float(m["total"])}
-                for m in monthly
-            ],
+            "monthly_trend": [{"month": m["month"].strftime("%Y-%m"), "amount": float(m["total"])} for m in monthly],
         }
+
+    def _generate_periods(self, start: datetime, end: datetime, group_by: str) -> List[datetime]:
+        periods = []
+        if group_by == "month":
+            current = start.replace(day=1)
+            while current <= end:
+                periods.append(current)
+                if current.month == 12:
+                    current = current.replace(year=current.year + 1, month=1)
+                else:
+                    current = current.replace(month=current.month + 1)
+        else:  # day
+            current = start
+            while current <= end:
+                periods.append(current)
+                current += timedelta(days=1)
+        return periods
+
+    def _compute_occupancy_series(
+        self, unit_pkids: List[int], start: datetime, end: datetime, group_by: str
+    ) -> List[float]:
+        periods = self._generate_periods(start, end, group_by)
+        occupancy = []
+        for period in periods:
+            if group_by == "month":
+                month_start = period
+                month_end = (period.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+            else:
+                month_start = period
+                month_end = period
+            total_days = (month_end - month_start).days + 1
+            occupied_days = 0
+            for pkid in unit_pkids:
+                agreements = RentalAgreement.objects.filter(
+                    unit__pkid=pkid,
+                    is_active=True,
+                    start_date__lte=month_end,
+                    coverage_end_date__gte=month_start,
+                )
+                if agreements.exists():
+                    occupied_days += total_days
+            occupancy_percent = (occupied_days / (len(unit_pkids) * total_days)) * 100 if unit_pkids else 0
+            occupancy.append(round(occupancy_percent, 2))
+        return occupancy
