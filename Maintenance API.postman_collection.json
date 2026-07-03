@@ -1,0 +1,764 @@
+{
+  "info": {
+    "name": "Blizton PMS - Maintenance & Expenses",
+    "description": "Complete test suite for maintenance requests and expense tracking",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "admin_access_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzNzYxNzI0LCJpYXQiOjE3ODI4OTc3MjQsImp0aSI6ImI1OTY3YTQzZjc3NDQzYjVhNzA0Nzk5MzdkZWQwZjNjIiwidXNlcl9pZCI6ImI2MGY1OTRjLTllNjItNGZiYi1iYmNjLWViNjhhZTJlYmU5MyJ9.MZixa9kFmh4AI1pSZAQ2cSROJpm7CAJqdF4nfDFzU7w",
+      "type": "string"
+    },
+    {
+      "key": "landlord_access_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzNzYxNTIyLCJpYXQiOjE3ODI4OTc1MjIsImp0aSI6IjQ5ZDc3YTQ3NWE0ZTRhZWFhN2U2M2NkMGUxY2EzM2VhIiwidXNlcl9pZCI6IjBlZDUwMWI5LWQwNzEtNDUyOC05YzJhLTQ1OGNiNTZkZGQyZCJ9.tDowbfxgMi782Uw-2CVqq2r5csX55nJzCQimMzenUw8",
+      "type": "string"
+    },
+    {
+      "key": "tenant_access_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgzNzYxNTgxLCJpYXQiOjE3ODI4OTc1ODEsImp0aSI6IjQ1MTc1MWM0ZThmMDQzM2RhNjA0YzdmOWM3MDQ3YTllIiwidXNlcl9pZCI6ImQyODI0MTU5LWQ3M2ItNGY2Yi1iODAyLWJkM2I1NjJmOTg1OSJ9.Z3jA1msoDJPPJAFcB8hlUNc_PXuPSk8D2M33tqSLVao",
+      "type": "string"
+    },
+    {
+      "key": "propertyId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unitId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tenantId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "maintenanceRequestId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "expenseId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ownerId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔥 Maintenance Requests",
+      "item": [
+        {
+          "name": "1. Create Maintenance Request (Tenant)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tenant_access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "unit_id",
+                  "value": "{{unitId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "title",
+                  "value": "Leaking Faucet in Kitchen",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "The kitchen sink faucet is constantly dripping water. It has been leaking for 2 days and is wasting water. Please fix as soon as possible.",
+                  "type": "text"
+                },
+                {
+                  "key": "priority",
+                  "value": "medium",
+                  "type": "text"
+                },
+                {
+                  "key": "notes",
+                  "value": "I've placed a bucket underneath to catch the water.",
+                  "type": "text"
+                },
+                {
+                  "key": "images",
+                  "value": "",
+                  "type": "file"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", ""]
+            },
+            "description": "Create a new maintenance request as a tenant. Images are optional (max 5)."
+          }
+        },
+        {
+          "name": "2. List Maintenance Requests (Landlord)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", ""]
+            },
+            "description": "List all maintenance requests for properties owned/managed by the landlord."
+          }
+        },
+        {
+          "name": "3. List Maintenance Requests (Tenant)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tenant_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", ""]
+            },
+            "description": "List all maintenance requests submitted by the tenant (only their own)."
+          }
+        },
+        {
+          "name": "4. List with Filters (Landlord)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/?status=submitted&priority=high",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", ""],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "submitted"
+                },
+                {
+                  "key": "priority",
+                  "value": "high"
+                }
+              ]
+            },
+            "description": "List maintenance requests with filters (status, priority, property)."
+          }
+        },
+        {
+          "name": "5. Get Maintenance Request Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/{{maintenanceRequestId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", "{{maintenanceRequestId}}", ""]
+            },
+            "description": "Get detailed information about a specific maintenance request."
+          }
+        },
+        {
+          "name": "6. Update Status to In Progress (Landlord)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"in_progress\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/{{maintenanceRequestId}}/status/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", "{{maintenanceRequestId}}", "status", ""]
+            },
+            "description": "Update the status to 'in_progress'. This will notify the tenant via email."
+          }
+        },
+        {
+          "name": "7. Update Status to Cancelled (Landlord)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"cancelled\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/{{maintenanceRequestId}}/status/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", "{{maintenanceRequestId}}", "status", ""]
+            },
+            "description": "Cancel a maintenance request. This will notify the tenant via email."
+          }
+        },
+        {
+          "name": "8. Complete Request with Cost (Landlord)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"actual_cost\": 25000,\n    \"notes\": \"Fixed by professional plumber. Replaced the entire faucet system. New pipes installed.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/{{maintenanceRequestId}}/complete/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", "{{maintenanceRequestId}}", "complete", ""]
+            },
+            "description": "Complete a maintenance request. This automatically creates an expense record and notifies the tenant via email."
+          }
+        },
+        {
+          "name": "9. Update Request (Add More Images)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tenant_access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "notes",
+                  "value": "Update: The leak has gotten worse. Please prioritize this.",
+                  "type": "text"
+                },
+                {
+                  "key": "images",
+                  "value": "",
+                  "type": "file"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/{{maintenanceRequestId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", "{{maintenanceRequestId}}", ""]
+            },
+            "description": "Update a maintenance request (add notes, add more images). Only available if status is 'submitted'."
+          }
+        },
+        {
+          "name": "10. Attempt Delete (Should Fail)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/{{maintenanceRequestId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", "{{maintenanceRequestId}}", ""]
+            },
+            "description": "⚠️ This endpoint should return a 405 or 403. Deletion is NOT allowed by design."
+          }
+        }
+      ]
+    },
+    {
+      "name": "💰 Expenses",
+      "item": [
+        {
+          "name": "1. Create Expense (Landlord)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"property_id\": \"{{propertyId}}\",\n    \"category\": \"maintenance\",\n    \"amount\": 25000,\n    \"expense_date\": \"2026-07-02\",\n    \"description\": \"Replacement of kitchen faucet and pipes\",\n    \"maintenance_request_id\": \"{{maintenanceRequestId}}\",\n    \"is_reimbursable\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reports/expenses/",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "expenses", ""]
+            },
+            "description": "Create an expense manually. You can optionally link it to a maintenance request."
+          }
+        },
+        {
+          "name": "2. Create Expense Without Maintenance Link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"property_id\": \"{{propertyId}}\",\n    \"category\": \"utility\",\n    \"amount\": 45000,\n    \"expense_date\": \"2026-07-01\",\n    \"description\": \"Monthly water bill for entire building\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reports/expenses/",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "expenses", ""]
+            },
+            "description": "Create an expense without linking to a maintenance request."
+          }
+        },
+        {
+          "name": "3. List Expenses (Landlord)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reports/expenses/",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "expenses", ""]
+            },
+            "description": "List all expenses for properties owned/managed by the landlord."
+          }
+        },
+        {
+          "name": "4. List Expenses with Filters",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reports/expenses/?property={{propertyId}}&category=maintenance",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "expenses", ""],
+              "query": [
+                {
+                  "key": "property",
+                  "value": "{{propertyId}}"
+                },
+                {
+                  "key": "category",
+                  "value": "maintenance"
+                }
+              ]
+            },
+            "description": "List expenses filtered by property and category."
+          }
+        },
+        {
+          "name": "5. Get Expense Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reports/expenses/{{expenseId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "expenses", "{{expenseId}}", ""]
+            },
+            "description": "Get detailed information about a specific expense."
+          }
+        },
+        {
+          "name": "6. Update Expense (Landlord)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"description\": \"Updated: Replaced faucet and pipes - additional labor cost\",\n    \"amount\": 27000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reports/expenses/{{expenseId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "expenses", "{{expenseId}}", ""]
+            },
+            "description": "Update an existing expense (partial update)."
+          }
+        },
+        {
+          "name": "7. Delete Expense (Landlord)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reports/expenses/{{expenseId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "expenses", "{{expenseId}}", ""]
+            },
+            "description": "Delete an expense. Use with caution."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 Maintenance Reports",
+      "item": [
+        {
+          "name": "1. Maintenance Summary (Landlord)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reports/maintenance/property/{{propertyId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "maintenance", "property", "{{propertyId}}", ""]
+            },
+            "description": "Get maintenance summary for a property (total requests, costs by status/priority)."
+          }
+        },
+        {
+          "name": "2. Maintenance Summary with Date Range",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reports/maintenance/property/{{propertyId}}/?start=2026-06-01&end=2026-07-02",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "maintenance", "property", "{{propertyId}}", ""],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "2026-06-01"
+                },
+                {
+                  "key": "end",
+                  "value": "2026-07-02"
+                }
+              ]
+            },
+            "description": "Get maintenance summary for a date range."
+          }
+        },
+        {
+          "name": "3. Maintenance Analytics (Advanced)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reports/maintenance/analytics/{{propertyId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "maintenance", "analytics", "{{propertyId}}", ""]
+            },
+            "description": "Get detailed maintenance analytics (costs by vendor, monthly trends, priority breakdown)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔄 Complete Workflow (Full Test)",
+      "item": [
+        {
+          "name": "▶️ Full Maintenance Workflow",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            },
+            "description": "Run this workflow manually by executing requests in order: 1→2→3→4→5→6"
+          }
+        },
+        {
+          "name": "Step 1: Tenant Creates Request (Set maintenanceRequestId)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tenant_access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"unit_id\": \"{{unitId}}\",\n    \"title\": \"Complete Bathroom Renovation Required\",\n    \"description\": \"The bathroom tiles are broken, shower head is rusted, and the sink is cracked. This requires complete renovation.\",\n    \"priority\": \"high\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", ""]
+            }
+          }
+        },
+        {
+          "name": "Step 2: Landlord Views All Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", ""]
+            }
+          }
+        },
+        {
+          "name": "Step 3: Landlord Marks In Progress",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"in_progress\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/{{maintenanceRequestId}}/status/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", "{{maintenanceRequestId}}", "status", ""]
+            }
+          }
+        },
+        {
+          "name": "Step 4: Landlord Marks Complete (Creates Expense)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"actual_cost\": 150000,\n    \"notes\": \"Complete bathroom renovation done. New tiles, shower, sink, and plumbing installed.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/{{maintenanceRequestId}}/complete/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", "{{maintenanceRequestId}}", "complete", ""]
+            }
+          }
+        },
+        {
+          "name": "Step 5: Verify Expense Created",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{landlord_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reports/expenses/?maintenance_request_id={{maintenanceRequestId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "expenses", ""],
+              "query": [
+                {
+                  "key": "maintenance_request_id",
+                  "value": "{{maintenanceRequestId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Step 6: Tenant Views Completed Request",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tenant_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/maintenance/requests/{{maintenanceRequestId}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["maintenance", "requests", "{{maintenanceRequestId}}", ""]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

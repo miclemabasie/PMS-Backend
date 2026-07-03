@@ -1,9 +1,15 @@
-from django.urls import path
-from .views import ApproveMaintenanceView, CompleteMaintenanceView
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import ApproveMaintenanceView, CompleteMaintenanceView, MaintenanceRequestViewSet
 
 app_name = "maintenance"
 
+
+router = DefaultRouter()
+router.register(r'requests', MaintenanceRequestViewSet, basename='maintenance-request')
+
 urlpatterns = [
+    path('', include(router.urls)),
     path(
         "<uuid:pk>/approve/",
         ApproveMaintenanceView.as_view(),
@@ -15,3 +21,4 @@ urlpatterns = [
         name="complete-maintenance",
     ),
 ]
+
